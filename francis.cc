@@ -33,7 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <francis.h>
 
 /*
- * Accepts an arbitrary matrix, it will be put into Hessenberg form
+ * Accepts an arbitrary matrix, it will be put into Hessenberg form.
  *
  * This will destroy the argument, A.
  *
@@ -48,6 +48,8 @@ int EigenFrancis_t::CalcEigenValues (Md_t &A)
 
 /*
  * Calculate the Eigen values of A.  The eigen values are stored in the class.
+ *
+ * Expects the matrix to be in in Hessenberg form.
  *
  * This will destroy the argument, A.
  *
@@ -94,9 +96,9 @@ void ComplexEigen (Md_t &A, int row, conj_t &conj)
 	 *
 	 */
 
-	double b = -(A[row + 1][row + 1] + A[row][row]);
-	double c = A[row + 1][row + 1] * A[row][row] -
-					A[row][row + 1] * A[row + 1][row];
+	double b = -(A(row + 1, row + 1) + A(row, row));
+	double c = A(row + 1, row + 1) * A(row, row) -
+					A(row, row + 1) * A(row + 1, row);
 
 	conj.real = -b / 2; // real
 	conj.imag = sqrt (fabs (b * b - 4 * c)) / 2; // imag (+/-)
@@ -110,11 +112,12 @@ int EigenFrancis_t::DetectConvergence (Md_t &H)
 	for (int i = rows - 1; i > 0; --i) {
 
 		// equation 7.5.4 in GVL4
-		double diag = MACH_EPS * (fabs (H[i][i]) + fabs (H[i - 1][i - 1]));
+		double diag = MACH_EPS * (fabs (H(i, i)) + fabs (H(i - 1, i - 1)));
 
-		if (H[i][i - 1] == 0 || fabs (H[i][i - 1]) <= diag) {
+		if (H(i, i - 1) == 0 || fabs (H(i, i - 1)) <= diag) {
 
-			H[i][i - 1] = 0;
+			H(i, i - 1) = 0;
+
 			return i;
 		}
 	}
@@ -126,14 +129,14 @@ void EigenFrancis_t::FrancisStep (Md_t &A, double shift)
 {
 	Md_t e1 (A.rows (), 1, 0.0);
 	int last = A.rows () - 1;
-	double s = A[last - 1][last - 1] + A[last][last];
-	double t = A[last - 1][last - 1] * A[last][last] -
-				A[last - 1][last] * A[last][last - 1];
+	double s = A(last - 1, last - 1) + A(last, last);
+	double t = A(last - 1, last - 1) * A(last, last) -
+				A(last - 1, last) * A(last, last - 1);
 
 	// From GVL4
-	e1[0][0] = A[0][0] * A[0][0] + A[0][1] * A[1][0] - s * A[0][0] + t;
-	e1[1][0] = A[1][0] * (A[0][0] + A[1][1] - s);
-	e1[2][0] = A[2][1] * A[1][0];
+	e1(0, 0) = A(0, 0) * A(0, 0) + A(0, 1) * A(1, 0) - s * A(0, 0) + t;
+	e1(1, 0) = A(1, 0) * (A(0, 0) + A(1, 1) - s);
+	e1(2, 0) = A(2, 1) * A(1, 0);
 
 	ApplyBulge (A, e1);
 	ChaseBulge (A);
@@ -144,10 +147,10 @@ void EigenFrancis_t::FrancisStep (Md_t &A, double shift)
 int EigenFrancis_t::SchurSubMatrix (Md_t &A, int index, conj_t EigenValues[])
 {
 	// Matrix_t<>::CoW is expensive => cache values
-	double a = A[index][index];
-	double b = A[index][index + 1];
-	double c = A[index + 1][index];
-	double d = A[index + 1][index + 1];
+	double a = A(index, index);
+	double b = A(index, index + 1);
+	double c = A(index + 1, index);
+	double d = A(index + 1, index + 1);
 	double tmp = a - d;
 	double p = 0.5 * tmp;
 	double bcmax = fmax (fabs(b), fabs(c));
@@ -203,7 +206,7 @@ int EigenFrancis_t::IterateAndShift (Md_t &A)
 
 	} else if (rows == 1) {
 
-		ef_EigenValues[ef_N].real = A[0][0];
+		ef_EigenValues[ef_N].real = A(0, 0);
 		ef_EigenValues[ef_N].imag = 0;
 		++ef_N;
 
@@ -233,7 +236,7 @@ int EigenFrancis_t::IterateAndShift (Md_t &A)
 			double shift;
 
 			if ((iterations % 10) == 0)
-				shift = A[last][last]; // Rayleigh Quotient
+				shift = A(last, last); // Rayleigh Quotient
 			else {
 
 				SchurSubMatrix (A, last - 1, ef_EigenValues + ef_N);
@@ -247,7 +250,7 @@ int EigenFrancis_t::IterateAndShift (Md_t &A)
 
 		if (pivot == last) {
 
-			ef_EigenValues[ef_N].real = A[last][last];
+			ef_EigenValues[ef_N].real = A(last, last);
 			ef_EigenValues[ef_N].imag = 0;
 			++ef_N;
 
@@ -270,7 +273,7 @@ int EigenFrancis_t::IterateAndShift (Md_t &A)
 
 		} else if (pivot == 1) {
 
-			ef_EigenValues[ef_N].real = A[0][0];
+			ef_EigenValues[ef_N].real = A(0, 0);
 			ef_EigenValues[ef_N].imag = 0;
 			++ef_N;
 
@@ -377,8 +380,8 @@ bool EigenFrancis_t::RawStep (Md_t &A, int step)
 	double * __restrict Aprodw = new double [rows];
 	int prows = A.prows ();
 
-	beta = alpha = A[start][step] * A[start][step];
-	w[start] = A[start][step];
+	beta = alpha = A(start, step) * A(start, step);
+	w[start] = A(start, step);
 
 	for (int i = start + 1, k = step * prows + i; i < halt; ++i, ++k) {
 
@@ -501,10 +504,18 @@ bool EigenFrancis_t::ApplyBulge (Md_t &A, Md_t &x)
 }
 
 /*
- * Implements inverse iteration.  If the inverse of A is _A, then
- * _Ax_i = Ax_(i + 1), --> x_i = Ax_(i + 1), factor with QR to find x_(i+1)
+ * Routine to compute eigenvectors for real eigenvalues.  Implements 
+ * inverse iteration (power method with a conditioned matrix).
+ *
+ * If the inverse of A is A', then,
+ *
+ * 1. 1/µ is an eigenvalue of A'.
+ * 2. Shift the spectrum of A by µ (now the largest eigenvalue of A')
+ * 3. By the power method: A'x_i = x_i+1, --> x_i = Ax_i+1:
+ *	  factor with QR to find x_i+1
  *
  */
+
 bool EigenFrancis_t::FindEigenVectorReal (double lambda, Md_t &A, Md_t &u)
 {
     double halt = 10 * MACH_EPS * A.norm_inf ();
@@ -520,7 +531,7 @@ bool EigenFrancis_t::FindEigenVectorReal (double lambda, Md_t &A, Md_t &u)
     Md_t x;
 
 	for (int i = 0; i < rows; ++i)
-		_A[i][i] -= lambda;
+		_A(i, i) -= lambda;
 
     u.set_WiP ();
 
@@ -529,15 +540,15 @@ bool EigenFrancis_t::FindEigenVectorReal (double lambda, Md_t &A, Md_t &u)
 
         scratch_A = _A;
         scratch_A.copy ();
-        x = scratch_A.solve_b (u);
+        x = scratch_A.solveQR (u);
         u = x.vec_norm ();
 
 		d = _A * u;
 
 		r_inf = DBL_MIN;
 		for (int i = 0; i < rows; ++i)
-			if (r_inf < fabs (d[i][0]))
-				r_inf = fabs (d[i][0]);
+			if (r_inf < fabs (d(i, 0)))
+				r_inf = fabs (d(i, 0));
 
 #if 0
        	Md_t Rayleigh = A * u;
@@ -560,5 +571,4 @@ bool EigenFrancis_t::FindEigenVectorReal (double lambda, Md_t &A, Md_t &u)
 
     return true;
 }
-
 

@@ -25,9 +25,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  */
 
-/*! \file matrix.h
- */
-
 #ifndef __DJS_MATRIX_H__
 #define __DJS_MATRIX_H__
 
@@ -41,7 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <time.h>
 #include <assert.h>
 
-#include <ptr.h>
+#include <memory>
 
 static int serialno = 0;
 
@@ -102,10 +99,10 @@ static __inline int64_t __djs_rdtsc (void)
 template<typename T> struct MatrixData_t
 {
 	T				*md_data;
-	size_t			md_rows;
-	size_t			md_columns;
+	ssize_t			md_rows;
+	ssize_t			md_columns;
 
-	MatrixData_t (size_t rows, size_t columns) :
+	MatrixData_t (ssize_t rows, ssize_t columns) :
 	md_rows (rows),
 	md_columns (columns)
 	{
@@ -117,12 +114,12 @@ template<typename T> struct MatrixData_t
 		delete [] md_data;
 	}
 
-	size_t rows ()
+	ssize_t rows ()
 	{
 		return md_rows;
 	}
 
-	size_t columns ()
+	ssize_t columns ()
 	{
 		return md_columns;
 	}
@@ -130,38 +127,6 @@ template<typename T> struct MatrixData_t
 	T * raw ()
 	{
 		return md_data;
-	}
-};
-
-/*
- * Matrices are laid out in column order to support vector
- * operations.  C++ is LALR so the [][] operators must return
- * row first, then a column.  Hence, we must store the ag_rows. :-(
- *
- */
-
-template<typename T> struct __agg_t
-{
-	T			*ag_data;
-	size_t		ag_rows;
-
-	__agg_t ()
-	{
-	}
-
-	void set (T *__base, int rows)
-	{
-		ag_data = __base;
-		ag_rows = rows;
-	}
-
-	inline T &		operator[] (int index)
-	{
-		MASSERT_RANGE (index >= 0 && (size_t) index < ag_rows);
-
-		index *= ag_rows;
-
-		return ag_data[index];
 	}
 };
 
@@ -174,16 +139,13 @@ template<typename T> struct __agg_t
 
 template<typename T> struct MatrixView_t
 {
-	ptr_t< MatrixData_t<T> > mw_matrix;
+	std::shared_ptr< MatrixData_t<T> > mw_matrix;
 	T					*mw_base;
 
 	int					mw_serialno;
 	bool				mw_transpose;
 	bool				mw_CoW;
 	bool				mw_immutable;
-
-	typedef __agg_t<T>	column_t;
-	column_t			*mw_rows;
 
 	// The physical size of the matrix
 	int					mw_prows;
@@ -202,7 +164,6 @@ template<typename T> struct MatrixView_t
 		return false;
 	}
 
-	// is the operator * defined?
 	static bool defined (MatrixView_t *A, MatrixView_t *B)
 	{
 		return A->defined (*B);
@@ -214,10 +175,8 @@ template<typename T> struct MatrixView_t
 		return A->columns () == B->rows ();
 	}
 
-	// set up the mappings for rows in the matrix memory
 	void init ()
 	{
-		mw_rows = new __agg_t<T>[mw_vrows];
 	}
 
 	MatrixView_t ()
@@ -226,7 +185,8 @@ template<typename T> struct MatrixView_t
 	}
 
 	/*
-	 * A window into a matrix at <srow, scol> to <srow + nrow, scol + ncol>
+	 * A window into a matrix at <start row, start col> to 
+	 * <srow + nrow, scol + ncol>
 	 *
 	 * Relative to current window.
 	 *
@@ -234,9 +194,9 @@ template<typename T> struct MatrixView_t
 	 *
 	 */
 	MatrixView_t (MatrixView_t<T> *matrixView,
-					int srow,
+					int srow,		// start
 					int scol,
-					int nrows,
+					int nrows,		// delta from start
 					int ncols) :
 		mw_matrix (matrixView->mw_matrix),
 		mw_serialno (++serialno),
@@ -251,15 +211,11 @@ template<typename T> struct MatrixView_t
 		mw_base = matrixView->mw_base + scol * mw_prows + srow;
 
 		init ();
-
-		T *p = raw ();
-
-		for (int i = 0; i < mw_vrows; i++, ++p)
-			mw_rows[i].set (p, mw_prows);
 	}
 
 	/*
 	 * Restore the underlying matrix to full view.
+	 *
 	 * CoW
 	 *
 	 */
@@ -277,15 +233,11 @@ template<typename T> struct MatrixView_t
 		mw_base = matrixView->mw_matrix->raw ();
 
 		init ();
-
-		T *p = raw ();
-
-		for (int i = 0; i < mw_vrows; i++, ++p)
-			mw_rows[i].set (p, mw_prows);
 	}
 
 	/*
 	 * A window into a matrix at <0, 0> to <__n, __m>, or a column vector
+	 *
 	 * CoW
 	 *
 	 */
@@ -309,11 +261,6 @@ template<typename T> struct MatrixView_t
 			mw_base = mw_matrix->raw ();
 
 		init ();
-
-		T *p = raw ();
-
-		for (int i = 0; i < mw_vrows; i++, ++p)
-			mw_rows[i].set (p, mw_prows);
 	}
 
 	/*
@@ -335,11 +282,6 @@ template<typename T> struct MatrixView_t
 		mw_base = mw_matrix->raw ();
 
 		init ();
-
-		T *p = raw ();
-
-		for (int i = 0; i < mw_vrows; i++, ++p)
-			mw_rows[i].set (p, mw_prows);
 	}
 
 	/*
@@ -362,15 +304,14 @@ template<typename T> struct MatrixView_t
 
 		init ();
 
-		T *p = raw ();
-
 		int index = 0;
-		for (int i = 0; i < mw_vrows; i++, ++p)
-		{
-			mw_rows[i].set (p, mw_prows);
+		int phys = 0;
 
-			for (int j = 0; j < mw_vcolumns; ++j, ++index)
-				mw_rows[i][j] = __A[index];
+		for (int i = 0; i < mw_vrows; i++)
+		{
+			phys = i;
+			for (int j = 0; j < mw_vcolumns; ++j, ++index, phys += mw_prows)
+				mw_base[phys] = __A[index];
 		}
 	}
 
@@ -395,48 +336,49 @@ template<typename T> struct MatrixView_t
 
 		init ();
 
-		T *p = raw ();
+		int phys;
 
-		for (int i = 0; i < mw_vrows; i++, ++p)
+		for (int i = 0; i < mw_prows; i++)
 		{
-			mw_rows[i].set (p, mw_prows);
+			phys = i;
 
-			for (int j = 0; j < mw_vcolumns; ++j)
+			for (int j = 0; j < mw_pcolumns; ++j, phys += mw_prows)
 			{
 				if (!not_Diagonal) {
 					if (i == j)
-						mw_rows[i][j] = __x;
+						mw_base[phys] = __x;
 					else
-						mw_rows[i][j] = 0;
+						mw_base[phys] = 0;
 				} else
-					mw_rows[i][j] = __x;
+					mw_base[phys] = __x;
 			}
 		}
 	}
 
 	~MatrixView_t ()
 	{
-		// ptr_t reference counts all other memory
-		delete [] mw_rows;
 	}
 
 	// If we're a window into a sub-matrix explode to full view again
 	void viewSelf (int nrows, int ncolumns)
 	{
+#if 0
 		MASSERT_RANGE (nrows <= mw_prows);
 		MASSERT_RANGE (ncolumns <= mw_pcolumns);
 
 		mw_vrows = nrows;
 		mw_vcolumns = ncolumns;
+		mw_base = raw ();
 
 		delete [] mw_rows;
 
-		mw_rows = new __agg_t<T>[mw_vrows];
+		mw_rows = new __agg_t<T>(mw_vrows);
 
 		T *p = raw ();
 
 		for (int i = 0; i < mw_vrows; i++, ++p)
-			mw_rows[i].set (p, mw_prows);
+			mw_rows(i).set (p, mw_prows);
+#endif
 	}
 
 	void update ()
@@ -517,18 +459,56 @@ template<typename T> struct MatrixView_t
 		for (int i = 0; i < rows(); i++)
 		{
 			for (int j = 0; j < columns(); j++)
-				printf (buffer, (double) (*this)[i][j]);
+				printf (buffer, (double) this->datum (i, j));
 
 			printf ("\n" );
 		}
 	}
 
-	inline column_t &operator[] (int row)
+	void displayExp (const char *name)
+	{
+		printf( "%s\t%p (%p)\t%d\t%d (%d) x %d (%d)\t (%s)\n", name, 
+			this, 
+			mw_matrix->raw (),
+			mw_serialno, 
+			rows(), 
+			mw_prows,
+			columns (),
+			mw_pcolumns,
+			(mw_CoW ? "CoW" : "WiP"));
+
+		for (int i = 0; i < rows(); i++)
+		{
+			for (int j = 0; j < columns(); j++)
+				printf ("%e\t", (double) (*this)(i, j));
+
+			printf ("\n" );
+		}
+	}
+
+	inline T &datum (const int row, const int column)
+	{
+#if 0
+int offset = column * mw_prows + row;
+
+printf ("%d\t%d\t%p\t%p\t%d\n", 
+	row,
+	column,
+	mw_base, 
+	mw_base + offset,
+	offset);
+#endif
+		return mw_base[column * mw_prows + row];
+	}
+
+#if 0
+	inline column_t &operator() (int row)
 	{
 		MASSERT_RANGE (row >= 0 && row <= mw_vrows);
 
-		return mw_rows[row];
+		return mw_rows(row);
 	}
+#endif
 
 	/*
 	 * The follow operators are invoked by Matrix_t; they are not
@@ -538,14 +518,14 @@ template<typename T> struct MatrixView_t
 	MatrixView_t &operator+= (MatrixView_t &term)
 	{
 		if (!defined (term))
-			throw false;
+			throw ("+= illegal dimensions");
 
 		update ();
 
 		T * __restrict base = raw ();
 		T * __restrict Abase = term.raw ();
-		size_t drow = mw_prows - mw_vrows;
-		size_t Arow = term.mw_prows - term.mw_vrows;
+		ssize_t drow = mw_prows - mw_vrows;
+		ssize_t Arow = term.mw_prows - term.mw_vrows;
 
 		for (int j = 0; j < mw_vcolumns; 
 			++j, base += drow, Abase += Arow)
@@ -559,14 +539,14 @@ template<typename T> struct MatrixView_t
 	MatrixView_t &operator-= (MatrixView_t &term)
 	{
 		if (!defined (term))
-			throw false;
+			throw ("-= illegal dimensions");
 
 		update ();
 
 		T * __restrict base = raw ();
 		T * __restrict Abase = term.raw ();
-		size_t drow = mw_prows - mw_vrows;
-		size_t Arow = term.mw_prows - term.mw_vrows;
+		ssize_t drow = mw_prows - mw_vrows;
+		ssize_t Arow = term.mw_prows - term.mw_vrows;
 
 		for (int j = 0; j < mw_vcolumns; 
 			++j, base += drow, Abase += Arow)
@@ -582,7 +562,7 @@ template<typename T> struct MatrixView_t
 		update ();
 
 		T * __restrict base = raw ();
-		size_t drow = mw_prows - mw_vrows;
+		ssize_t drow = mw_prows - mw_vrows;
 
 		for (int j = 0; j < mw_vcolumns; ++j, base += drow)
 			for (int i = 0; i < mw_vrows; ++i, ++base)
@@ -596,13 +576,51 @@ template<typename T> struct MatrixView_t
 		update ();
 
 		T * __restrict base = raw ();
-		size_t drow = mw_prows - mw_vrows;
+		ssize_t drow = mw_prows - mw_vrows;
 
 		for (int j = 0; j < mw_vcolumns; ++j, base += drow)
 			for (int i = 0; i < mw_vrows; ++i, ++base)
 				*base /= scaler;
 
 		return *this;
+	}
+};
+
+template<typename T> struct mptr_t : public std::shared_ptr< MatrixView_t <T> >
+{
+	mptr_t (void) :
+		std::shared_ptr< MatrixView_t <T> > (NULL)
+	{
+	}
+
+	mptr_t (MatrixView_t <T> *p) : 
+		std::shared_ptr< MatrixView_t <T> > (p)
+	{
+	}
+
+	~mptr_t (void)
+	{
+	}
+
+	bool valid (void)
+	{
+		return ((*this) ? true : false);
+	}
+
+	int rcount (void)
+	{
+		return std::shared_ptr< MatrixView_t <T> >::use_count ();
+	}
+
+	bool exclusive (void)
+	{
+#ifdef __DEBUG
+		assert (valid ());
+#endif
+
+		return (rcount () == 1 
+			? true 
+			: false);
 	}
 };
 
@@ -616,10 +634,12 @@ template<typename T> struct MatrixView_t
 
 template<typename T> class Matrix_t
 {
-typedef ptr_t< MatrixView_t<T> > data_t;
+// typedef std::shared_ptr< MatrixView_t<T> > data_t;
 #define INVOKE (m_data.get ())
 
-	data_t			m_data;
+	// data_t			m_data;
+	// std::shared_ptr< MatrixView_t<T> > m_data;
+	mptr_t<T>			m_data;
 
 	MatrixView_t<T>	*get ()
 	{
@@ -630,21 +650,21 @@ typedef ptr_t< MatrixView_t<T> > data_t;
 	inline void CoW (void)
 	{
 		if (INVOKE->immutable ())
-			throw false;
+			throw ("protection violation");
 
 		// Should we WiP?
 		if (!INVOKE->CoW ())
 			return;
 
 		if (m_data.exclusive ())
-			if (INVOKE->mw_matrix.exclusive ())
+			if (INVOKE->mw_matrix.use_count () == 1)
 				return;
 
 		// keep a reference in case another thread deletes
-		data_t old = m_data;
+		MatrixView_t<T> old = m_data.get ();
 
 		m_data = new MatrixView_t<T> (INVOKE->rows (), INVOKE->columns ());
-		copy (old.get ());
+		copy ( &old);
 	}
 
 	// copy a matrix
@@ -662,7 +682,7 @@ typedef ptr_t< MatrixView_t<T> > data_t;
 		if (old->rows () == old->prows () &&
 			old->columns () == old->pcolumns ())
 		{
-			size_t len = old->rows () * old->columns () * sizeof (T);
+			ssize_t len = old->rows () * old->columns () * sizeof (T);
 
 			memcpy (m_data->raw (), old->raw (), len);
 			return;
@@ -677,15 +697,15 @@ typedef ptr_t< MatrixView_t<T> > data_t;
 		if (m_data->mw_prows != m_data->mw_vrows ||
 			m_data->mw_pcolumns != m_data->mw_vcolumns) {
 
-			size_t len = old->mw_prows * old->mw_pcolumns * sizeof (T);
+			ssize_t len = old->mw_prows * old->mw_pcolumns * sizeof (T);
 			memcpy (m_data.get()->mw_matrix->raw (), 
 					old->mw_matrix->raw (), 
 					len);
 			return;
 		}
 
-		size_t prows = old->prows ();
-		size_t vrows = old->rows ();
+		ssize_t prows = old->prows ();
+		ssize_t vrows = old->rows ();
 		T * __restrict to_ptr = INVOKE->raw ();
 		T * __restrict from_ptr = old->raw ();
 
@@ -710,11 +730,14 @@ typedef ptr_t< MatrixView_t<T> > data_t;
 		if (origin) {
 
 			Q = Matrix_t<T> (origin->prows (), origin->pcolumns ());
-			size_t offset = origin->raw () - origin->mw_matrix->raw ();
+			ssize_t offset = origin->raw () - origin->mw_matrix->raw ();
 			int column = offset / origin->mw_prows;
 			int row = offset % origin->mw_prows;
 
-			Q = Q.view (row, column, origin->mw_vrows, origin->mw_vcolumns);
+			assert (origin->mw_prows >= A.rows ());
+			assert (origin->mw_pcolumns >= B.columns ());
+
+			Q = Q.view (row, column, A.rows (), B.columns ());
 
 			Q.set_WiP ();
 			Q.copy (origin);
@@ -789,21 +812,21 @@ public:
 
 	Matrix_t<T> &operator= (Matrix_t A)
 	{
-		if (m_data.valid () && INVOKE->immutable ())
-			throw false;
+		if (m_data.get () != NULL && INVOKE->immutable ())
+			throw ("illegal assignment");
 
 #if 0 // need to implment this so that one can write x = y when x is WiP
 		if (m_data.valid () && !INVOKE->CoW ()) {
 
 			if (!INVOKE->defined (*(A.m_data.get ())))
-				throw false;
+				("compute R, dimension mismatch")throw false;
 
 			T * __restrict base = INVOKE->raw ();
 			T * __restrict Abase = A.raw (); 
 			int vcols = INVOKE->mw_vcolumns;
 			int vrows = INVOKE->mw_vrows;
-			size_t drow = INVOKE->mw_prows - INVOKE->mw_vrows; 
-			size_t Arow = A.prows () - A.rows ();
+			ssize_t drow = INVOKE->mw_prows - INVOKE->mw_vrows; 
+			ssize_t Arow = A.prows () - A.rows ();
 
 			for (int j = 0; j < vcols; ++j, base += drow, Abase += Arow)
             	for (int i = 0; i < vrows; ++i, ++base, ++Abase)
@@ -838,6 +861,11 @@ public:
 		INVOKE->display(name, precision);
 	}
 
+	void displayExp(const char *name = "")
+	{
+		INVOKE->displayExp (name);
+	}
+
 	T *raw ()
 	{
 		return m_data->raw ();
@@ -864,7 +892,7 @@ public:
 
 		for (int i = 0; i < rows; ++i)
 			for (int j = 0; j < columns; ++j)
-				(*this)[i][j] = max * (T) ((double) rand () / RAND_MAX);
+				(*this)(i, j) = max * (T) ((double) rand () / RAND_MAX);
 	}
 
 	void randomly_fill (T max, int inv_pc_neg = 4, unsigned seed = 0)
@@ -879,9 +907,9 @@ public:
 		for (int i = 0; i < rows; ++i)
 			for (int j = 0; j < columns; ++j)
 			{
-				(*this)[i][j] = max * (T) ((double) rand () / RAND_MAX);
+				(*this)(i, j) = max * (T) ((double) rand () / RAND_MAX);
 				if ((rand () % inv_pc_neg) == 0)
-					(*this)[i][j] = -(*this)[i][j];
+					(*this)(i, j) = -(*this)(i, j);
 			}
 	}
 
@@ -897,15 +925,24 @@ public:
 			*base++ = *vbase++;
 	}
 
-	typename MatrixView_t<T>::column_t &operator[] (int row)
+#if 0
+	T &operator() (int &&row, int &&column)
 	{
-// There is no way to discriminate between A[i][j] lvalue and rvalue, so
-// we always check.  It can be expensive and turned off.  copy (void) can
-// be called above a block of lvalue code instead.
+		return INVOKE->datum (row, column);
+	}
+#endif
+
+	T &operator() (int row, int column)
+	{
+#ifdef __DEBUG
+		assert (row >= 0 && row < this->rows ());
+		assert (column >= 0 && column < this->columns ());
+#endif
+
 #ifndef __UNSAFE_ASSIGNMENT
 		CoW ();
 #endif
-		return m_data->operator[] (row);
+		return INVOKE->datum (row, column);
 	}
 
 	Matrix_t &operator+=(Matrix_t A)
@@ -974,7 +1011,7 @@ public:
 		return u;
 	}
 
-	Matrix_t<T> solve_b (Matrix_t<T> &b)
+	Matrix_t<T> solveQR (Matrix_t<T> &b)
 	{
 		Matrix_t x;
 
@@ -991,6 +1028,9 @@ public:
 	void HessenbergSimilarity (bool similar = true);
 	void ApplyHouseholder (Matrix_t<T> &, bool similar = false);
 	void ImplicitQRStep (int, double [], Matrix_t &);
+	bool ComputeCholesky (Matrix_t<T> &);
+	void SolveLower (Matrix_t<T> &, Matrix_t<T> &);
+	void SolveUpper (Matrix_t<T> &);
 
 	/**********************************************************
 	 *
@@ -1029,7 +1069,9 @@ public:
 	Matrix_t view (int srow, int scol, int nrows, int ncols, bool WiP = true)
 	{
 		Matrix_t A;
-		A.m_data = new MatrixView_t<T> (m_data.get (),
+//		A.m_data.reset (NULL); //  = NULL; // m_data.get ();
+
+		A.m_data =  new MatrixView_t<T> (m_data.get (),
 										srow,
 										scol,
 										nrows,
@@ -1104,14 +1146,14 @@ public:
 	bool equal_eps (Matrix_t<T> &A, T epsilon)
 	{
 		if (!MatrixView_t<T>::defined (A.get(), INVOKE))
-			throw false;
+			throw ("+/- epsilon dimension mismatch");
 
 		int __rows = rows ();
 		int __columns = columns ();
 
 		for (int i = 0; i < __rows; ++i)
 			for (int j = 0; j < __columns; ++j)
-				if ((T) fabs ((double) A[i][j] - (*INVOKE)[i][j]) > epsilon)
+				if ((T) fabs ((double) A(i, j) - (*this)(i, j)) > epsilon)
 					return false;
 
 		return true;
@@ -1119,7 +1161,7 @@ public:
 
 	bool operator== (Matrix_t &A)
 	{
-		size_t len = INVOKE->rows () * INVOKE->columns ();
+		ssize_t len = INVOKE->rows () * INVOKE->columns ();
 
 		T * __restrict x = raw ();
 		T * __restrict y = A.raw ();
@@ -1144,7 +1186,7 @@ public:
 		return dot;
 	}
 
-	// dot product of 2 vectors (matrices of the form [rows][1])
+	// dot product of 2 vectors (matrices of the form (rows, 1))
 	T vec_dot (Matrix_t &A)
 	{
 		MASSERT_RANGE (rows () ==  A.rows ());
@@ -1194,7 +1236,7 @@ public:
 
 			double norm = 0;
 			for (int j = INVOKE->columns () - 1; j >= 0; --j)
-				norm += fabs ((*INVOKE)[i][j]);
+				norm += fabs ((*this)(i, j));
 
 			if (norm > max)
 				max = norm;
@@ -1234,7 +1276,7 @@ public:
 	friend Matrix_t<T> operator*(Matrix_t<T> A, Matrix_t<T> B)
 	{
 		if (B.m_data->mw_transpose && A.raw () != B.raw ())
-			throw false; // need to implement this
+			throw ("only AtB or AtA supported"); // need to implement this
 
 		if (A.m_data->mw_transpose) {
 
@@ -1249,7 +1291,7 @@ public:
 	friend Matrix_t<T> mult_normal (Matrix_t<T> A, Matrix_t<T> B)
 	{
 		if (!MatrixView_t<T>::defined_prod (A.get(), B.get()))
-			throw false;
+			throw ("* dimension mismatch");
  
 		int Arows =  A.rows ();
 		int Aprows = A.m_data->prows ();
@@ -1299,17 +1341,21 @@ public:
 		return Q;
 	}
 
+	/*
+	 * It is logically transposed, not physically
+	 *
+	 */
 	friend Matrix_t<T> mult_transpose (Matrix_t<T> A, Matrix_t<T> B)
 	{
 		int Arows =  A.rows ();
 		int Acolumns = A.columns ();
 		int Aprows = A.m_data->prows ();
 		int Bcolumns = B.columns ();
-		Matrix_t<T> Q (Arows, B.rows ());
+		Matrix_t<T> Q (Acolumns, B.columns ());
 		int Bdelta = B.m_data->prows () - B.rows ();
 
-		if (Acolumns != B.columns ())
-			throw false;
+		if (Arows != B.rows ())
+			throw ("* AtB dimension mismatch");
 
 		T * __restrict Araw = A.raw ();
 		T * __restrict Braw = B.raw ();
@@ -1353,7 +1399,7 @@ public:
 	{
 		Matrix_t<T> Q (A.rows (), A.columns ());
 
-		size_t drow = A.m_data->prows () - A.rows ();
+		ssize_t drow = A.m_data->prows () - A.rows ();
 		T * __restrict Araw = A.raw ();
 		T * __restrict Qraw = Q.raw ();
 
@@ -1367,15 +1413,15 @@ public:
 	friend Matrix_t<T> operator+(Matrix_t<T> A, Matrix_t<T> B)
 	{
 		if (!MatrixView_t<T>::defined (A.get(), B.get()))
-			throw false;
+			throw ("+ dimension mismatch");
  
 		Matrix_t<T> Q = prepare_target (A, B);
 
 		T * __restrict Araw = A.raw ();
 		T * __restrict Braw = B.raw ();
 		T * __restrict Qraw = Q.raw ();
-		size_t dArow = A.m_data->prows () - A.rows ();
-		size_t dBrow = B.m_data->prows () - B.rows ();
+		ssize_t dArow = A.m_data->prows () - A.rows ();
+		ssize_t dBrow = B.m_data->prows () - B.rows ();
 
 		for (int i = A.rows (); i; --i, Araw += dArow, Braw += dBrow)
 			for (int j = A.columns (); j; --j, ++Araw, ++Braw, ++Qraw)
@@ -1387,7 +1433,7 @@ public:
 	friend Matrix_t<T> operator-(Matrix_t<T> A, Matrix_t<T> B)
 	{
 		if (!MatrixView_t<T>::defined (A.get(), B.get()))
-			throw false;
+			throw ("- dimension mismatch");
  
 		Matrix_t<T> Q = prepare_target (A, B);
 		// Matrix_t<T> Q (A.rows (), A.columns ());
@@ -1395,8 +1441,8 @@ public:
 		T * __restrict Araw = A.raw ();
 		T * __restrict Braw = B.raw ();
 		T * __restrict Qraw = Q.raw ();
-		size_t dArow = A.m_data->prows () - A.rows ();
-		size_t dBrow = B.m_data->prows () - B.rows ();
+		ssize_t dArow = A.m_data->prows () - A.rows ();
+		ssize_t dBrow = B.m_data->prows () - B.rows ();
 
 		for (int i = A.rows (); i; --i, Araw += dArow, Braw += dBrow)
 			for (int j = A.columns (); j; --j, ++Araw, ++Braw, ++Qraw)
@@ -1404,13 +1450,41 @@ public:
 
 		return Q;
 	}
+
+	/*
+	 * Ax = b
+	 *
+	 * A = GGt
+	 * Solve Gy = b
+	 * Solve Gtx = y
+	 *
+	 * b = Gy = G(Gtx) = GGtx = Ax
+	 *
+	 */
+	bool SolveSymmetric (Matrix_t<T> &b, Matrix_t<T> &x)
+	{
+		int n = rows ();
+		Matrix_t<T> G (n, n);
+
+		if (!ComputeCholesky (G))
+			return false;
+		G.SolveLower (b, x);
+		G.SolveUpper (x); // knows it really isn't transposed
+
+		return true;
+	}
+
+	int rcount (void)
+	{
+		return m_data.rcount ();
+	}
 };
 
 // QR decomposition, called from solve_b ()
 template<typename T> void Matrix_t<T>::find_R (Matrix_t<T> &b)
 {
 	if (!MatrixView_t<T>::defined_prod (get(), b.get())) 
-		throw false;
+		throw ("compute R, dimension mismatch");
 
 	CoW ();
 	b.CoW ();
@@ -1509,11 +1583,11 @@ template<typename T> Matrix_t<T> Matrix_t<T>::find_x (Matrix_t<T> &b)
 	{
 		sum = 0;
 		for (int j = columns - 1; j > i; --j)
-			sum += (*INVOKE)[i][j] * x[j][0];
+			sum += (*this)(i, j) * x(j, 0);
 
-		sum = b[i][0] - sum;
+		sum = b(i, 0) - sum;
 
-		x[i][0] = sum / (*INVOKE)[i][i];
+		x(i, 0) = sum / (*this)(i, i);
 	}
 
 	return x;
@@ -1535,6 +1609,10 @@ template<typename T> void Matrix_t<T>::QR (Matrix_t<T> &Q)
 
 	int rows = Matrix_t<T>::rows ();
 	int columns = Matrix_t<T>::columns ();
+
+	if (rows < columns)
+		throw ("underdetermined system");
+
 	int prows = INVOKE->prows ();
 	T beta;
 	T dotVk;
@@ -1580,8 +1658,8 @@ template<typename T> void Matrix_t<T>::QR (Matrix_t<T> &Q)
 
 #ifdef __JUST_V
 		for (int i = k; i < rows; ++i)
-			Q[i][k] = Vk[i];
-		Q[k][columns - 1] = beta;
+			Q(i, k) = Vk[i];
+		Q(k, columns - 1) = beta;
 #endif
 		// A = A + vwT (w = ATv)
 
@@ -1642,6 +1720,8 @@ template<typename T> void Matrix_t<T>::QR (Matrix_t<T> &Q)
 
 	delete [] Vk;
 	delete [] w;
+
+	Q = Q.view (0, 0, rows, rows);
 }
 
 /*
@@ -1767,7 +1847,7 @@ Matrix_t<T>::ApplyHouseholder (Matrix_t<T> &v, bool similar)
 	int columns = Matrix_t<T>::columns ();
 	int prows = Matrix_t<T>::prows ();
 	double * __restrict w = new double [rows];
-	double * __restrict Vk = v.raw (); // new double [rows];
+	double * __restrict Vk = v.raw (); // new double (rows);
 	double * __restrict data = raw ();
 	double * __restrict me = v.raw ();
 	double * __restrict p;
@@ -1853,11 +1933,11 @@ Matrix_t<T>::ApplyHouseholder (Matrix_t<T> &v, bool similar)
 }
 
 /*
- * Given the shifts furnished in shifts[], compute and apply the resulting
+ * Given the shifts furnished in shifts(), compute and apply the resulting
  * householder and then `chase the bulge' thus returning the system
  * to a similar Hessenberg form.
  *
- * (i) p0 = [π (A - uI)]e1
+ * (i) p0 = (π (A - uI))e1
  * (ii) Apply p0
  * (iii) Chase the bulge accumulating the qi in Q
  *
@@ -1888,7 +1968,7 @@ Matrix_t<T>::ImplicitQRStep (int N, double shifts[], Matrix_t &Q)
 
 	Matrix_t<T> p0 (rows (), 1, 0.0);
 	for (int i = 0; i < m; ++i)
-		p0[i][0] = ax[i][0];
+		p0(i, 0) = ax(i, 0);
 
 	/*
 	 * (ii) Apply p0 (introduce the `bulge')
@@ -1917,12 +1997,12 @@ Matrix_t<T>::ImplicitQRStep (int N, double shifts[], Matrix_t &Q)
 	if (rows > columns)
 		runs++;
 
-	Vk[0] = 0;
+	Vk(0) = 0;
 
 	for (int col = 0; col < runs; ++col)
 	{
 		int k = col + 1;
-		Vk[k] = mw_data[col * prows + k];
+		Vk[k] = mw_data(col * prows + k);
 
 		dotVk = Vk[k] * Vk[k];
 		e1 = dotVk;
@@ -1967,7 +2047,7 @@ Matrix_t<T>::ImplicitQRStep (int N, double shifts[], Matrix_t &Q)
 			for (int j = col, index = col * prows; 
 				j < columns; 
 				++j, index += prows)
-					mw_data[index + i] -= Vk[i] * w[j];
+					mw_data(index + i) -= Vk[i] * w[j];
 
 		/*
 		 * Calculate and store the qi in Q
@@ -1980,21 +2060,21 @@ Matrix_t<T>::ImplicitQRStep (int N, double shifts[], Matrix_t &Q)
 
 		if (col == 0) // Q = I
 			for (int r = 0; r < rows; ++r)
-				w[r] = beta * Vk[r];
+				w(r) = beta * Vk(r);
 		else
 			for (int r = 0; r < rows; ++r)
 			{
-				w[r] = 0;
+				w(r) = 0;
 				p = Vk + k;
 				q = Q_data + r + k*prows;
 				for (int c = k; c < columns; ++c)
 				{
-					w[r] += *q * *p;
+					w(r) += *q * *p;
 					++p;
 					q += prows;
 				}
 
-				w[r] *= beta;
+				w(r) *= beta;
 			}
 
 		// (ii) Q - wvT
@@ -2002,13 +2082,13 @@ Matrix_t<T>::ImplicitQRStep (int N, double shifts[], Matrix_t &Q)
 			for (int c = col; c < columns; ++c)
 				for (int r = 0, index = c * prows; r < rows; ++r, ++index)
 					if (r == c)
-						Q_data[index] = 1 - w[r] * Vk[c];
+						Q_data(index) = 1 - w(r) * Vk(c);
 					else
-						Q_data[index] = -(w[r] * Vk[c]);
+						Q_data(index) = -(w(r) * Vk(c));
 		else // not q0
 			for (int c = k; c < columns; ++c)
 				for (int r = 0, index = c * prows; r < rows; ++r, ++index)
-					Q_data[index] -= w[r] * Vk[c];
+					Q_data(index) -= w(r) * Vk(c);
 
 		/*
 		 * And now from the other side _R - beta _Rvvt
@@ -2017,28 +2097,108 @@ Matrix_t<T>::ImplicitQRStep (int N, double shifts[], Matrix_t &Q)
 
 		for (int r = 0; r < rows; ++r)
 		{
-			w[r] = 0;
+			w(r) = 0;
 			p = Vk + k;
 			q = mw_data + r + k*prows;
 			for (int c = k; c < columns; ++c)
 			{
-				w[r] += *q * *p;
+				w(r) += *q * *p;
 				++p;
 				q += prows;
 			}
 
-			w[r] *= beta;
+			w(r) *= beta;
 		}
 
 		for (int c = k; c < columns; ++c)
 			for (int r = 0, index = c * prows; r < rows; ++r, ++index)
-				mw_data[index] -= w[r] * Vk[c];
+				mw_data(index) -= w(r) * Vk(c);
 	}
 
 	delete [] Vk;
 	delete [] w;
 }
 
+template<typename T> bool
+Matrix_t<T>::ComputeCholesky (Matrix_t<T> &G)
+{
+	int n = rows ();
+	int step = stride ();
+	double * __restrict Araw = raw ();
+	double * __restrict Graw = G.raw ();
+
+#ifdef __DEBUG
+	assert (step > 0);
+#endif
+
+	for (int i = 0; i < n; ++i)
+		for (int j = 0; j < (i+1); ++j) 
+		{
+			double s = 0;
+			for (int k = 0; k < j; k++)
+				s += Graw [i + k * step] * Graw[j + k * step];
+			Graw[i + j * step] = (i == j) ?
+				sqrt(Araw[i + i * step] - s) :
+				(1.0 / Graw[j + j * step] * (Araw[i + j * step] - s));
+
+			if (isnan (Graw[i + j * step]))
+				return false;
+		}
+
+	return true;
+}
+
+template<typename T> void
+Matrix_t<T>::SolveLower (Matrix_t<T> &b, Matrix_t<T> &x)
+{
+	double sum;
+	int n = rows ();
+	double *Araw = raw ();
+	double *solve = x.raw ();
+	double *constraint = b.raw ();
+	int step = stride ();
+
+#ifdef __DEBUG
+	assert (step > 0);
+#endif
+
+	for (int i = 0; i < n; ++i)
+	{
+		sum = 0;
+
+		for (int j = 0; j < i; ++j)
+			sum += Araw[i + j * step] * solve[j];
+
+		solve[i] = (constraint[i] - sum) / Araw[i + i * step];
+	}
+}
+
+/*
+ * Solves for the transpose.  Used in Cholesky solutions.
+ *
+ */
+
+template<typename T> void
+Matrix_t<T>::SolveUpper (Matrix_t<T> &b)
+{
+	double sum;
+	int nrows = rows ();
+	int n = nrows - 1;
+	double *Araw = raw ();
+	double *constraint = b.raw ();
+	int step = stride ();
+
+	for (int ncol = n; ncol >= 0; --ncol)
+	{
+		sum = 0;
+
+		for (int nrow = n; nrow > ncol; --nrow)
+			sum += Araw[nrow + ncol * step] * constraint[nrow];
+
+		sum = constraint[ncol] - sum;
+		constraint[ncol] = sum / Araw[ncol + ncol * step];
+	}
+}
 
 #undef INVOKE
 

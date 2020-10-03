@@ -38,13 +38,13 @@ int main ()
 	// ...so fill it
 	for (int i = 0, count = 0; i < __DIM; ++i)
 		for (int j = 0; j < __DIM; ++j, ++count)
-			A[i][j] = count;
+			A(i, j) = count;
 
 	A.display ("A");
 
 	Md_t B = A;					// B and A share memory - copy-on-write (CoW)
 	B.display ("B");
-	B[__DIM >> 1][__DIM >> 1] = 3.1415926; // This will trigger a CoW
+	B(__DIM >> 1, __DIM >> 1) = 3.1415926; // This will trigger a CoW
 	// second argument is number of decimal places.  default is 2
 	B.display ("B now has own copy of memory", "5");
 	A.display ("A");
@@ -52,7 +52,7 @@ int main ()
 	Md_t x = A.vec_view (__DIM >> 1); // x and A share memory
 	x.display ("x");
 	x.set_WiP ();					// turn off Cow - updates reflected in A
-	x[0][0]	= 2.71828182;
+	x(0, 0)	= 2.71828182;
 	A.display ("A");
 
 	// create a matrix with an initial value of 0.5 - the last argument
@@ -74,10 +74,12 @@ int main ()
 	 */
 	Md_t E = D.view (2, 2, 2, 2, true);
 	E.display ("E");
-	E[0][0] = 0.99;
+	E(0, 0) = 0.99;
+	D(3, 6) = 7;
 	D.display ("(2, 2) is 0.99 now");
+
 	E.set_CoW ();
-	E[1][1] = 0.99;
+	E(1, 1) = 0.99;
 	E.display ("E has its own memory now");
 	D.display ("(3, 3) untouched");
 }
