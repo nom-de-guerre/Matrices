@@ -23,7 +23,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
- */
+*/
 
 #ifndef __DJS_MATRIX_H__
 #define __DJS_MATRIX_H__
@@ -41,19 +41,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <memory>
 
 static int serialno = 0;
-
-#ifdef DEBUG
-#define MASSERT assert
-#define DEBUG_RANGE
-#else
-#define MASSERT(X)
-#endif
-
-#ifdef DEBUG_RANGE
-#define MASSERT_RANGE assert
-#else
-#define MASSERT_RANGE(X)
-#endif
 
 /*
  * Useful for debugging performance problems and understanding
@@ -175,13 +162,13 @@ template<typename T> struct MatrixView_t
 		return A->columns () == B->rows ();
 	}
 
-	void init ()
+	void init (void)
 	{
 	}
 
-	MatrixView_t ()
+	MatrixView_t (void)
 	{
-		MASSERT (false);
+		assert (false);
 	}
 
 	/*
@@ -236,35 +223,30 @@ template<typename T> struct MatrixView_t
 	}
 
 	/*
-	 * A window into a matrix at <0, 0> to <__n, __m>, or a column vector
+	 * A view of a column vector.
 	 *
 	 * CoW
 	 *
 	 */
-	MatrixView_t (MatrixView_t<T> *matrixView, int __n, int __m, bool vector) :
+	MatrixView_t (MatrixView_t<T> *matrixView, const int column) :
 		mw_matrix (matrixView->mw_matrix),
 		mw_serialno (++serialno),
 		mw_transpose (false),
 		mw_CoW (true),
 		mw_immutable (false),
-		mw_prows (matrixView->mw_prows),
-		mw_pcolumns (matrixView->mw_pcolumns),
-		mw_vrows (__n),
-		mw_vcolumns (__m)
+		mw_prows (matrixView->rows ()),
+		mw_pcolumns (1),
+		mw_vrows (mw_prows),
+		mw_vcolumns (1)
 	{
-		if (vector) {
-
-			mw_base = mw_matrix->raw () + __m * mw_prows;
-			mw_vcolumns = 1;
-
-		} else
-			mw_base = mw_matrix->raw ();
+		mw_base = mw_matrix->raw () + column * matrixView->mw_prows;
 
 		init ();
 	}
 
 	/*
 	 * A new matrix of dimension __n x __m
+	 *
 	 * CoW
 	 *
 	 */
@@ -285,7 +267,9 @@ template<typename T> struct MatrixView_t
 	}
 
 	/*
-	 * A new matrix of dimension __n x __m, initialized from __A
+	 * A new matrix of dimension __n x __m, initialized from __A[]
+	 * __A[] is in row order.
+	 *
 	 * CoW
 	 *
 	 */
@@ -318,6 +302,7 @@ template<typename T> struct MatrixView_t
 	/*
 	 * A new matrix of dimension __n x __m.  Initial value of elements
 	 * is __x, or a diagonal matrix (e.g. __x = 1 creates I).
+	 *
 	 * CoW
 	 *
 	 */
@@ -355,12 +340,12 @@ template<typename T> struct MatrixView_t
 		}
 	}
 
-	~MatrixView_t ()
+	~MatrixView_t (void)
 	{
 	}
 
 	// If we're a window into a sub-matrix explode to full view again
-	void viewSelf (int nrows, int ncolumns)
+	void viewSelf (void)
 	{
 #if 0
 		MASSERT_RANGE (nrows <= mw_prows);
@@ -488,27 +473,8 @@ template<typename T> struct MatrixView_t
 
 	inline T &datum (const int row, const int column)
 	{
-#if 0
-int offset = column * mw_prows + row;
-
-printf ("%d\t%d\t%p\t%p\t%d\n", 
-	row,
-	column,
-	mw_base, 
-	mw_base + offset,
-	offset);
-#endif
 		return mw_base[column * mw_prows + row];
 	}
-
-#if 0
-	inline column_t &operator() (int row)
-	{
-		MASSERT_RANGE (row >= 0 && row <= mw_vrows);
-
-		return mw_rows(row);
-	}
-#endif
 
 	/*
 	 * The follow operators are invoked by Matrix_t; they are not
@@ -656,6 +622,10 @@ template<typename T> class Matrix_t
 		if (!INVOKE->CoW ())
 			return;
 
+		/*
+		 * Matrix_t is exclusive as is the matrixView - nothing to do
+		 *
+		 */
 		if (m_data.exclusive ())
 			if (INVOKE->mw_matrix.use_count () == 1)
 				return;
@@ -664,7 +634,7 @@ template<typename T> class Matrix_t
 		MatrixView_t<T> old = m_data.get ();
 
 		m_data = new MatrixView_t<T> (INVOKE->rows (), INVOKE->columns ());
-		copy ( &old);
+		copy (&old);
 	}
 
 	// copy a matrix
@@ -674,8 +644,7 @@ template<typename T> class Matrix_t
 		 * Copying can take the form of:
 		 *
 		 * (i) physical to physical
-		 * (ii) virtual to physical
-		 * (iii) carry physical to a matrix offering virtual
+		 * (ii) logical to physical
 		 *
 		 */
 
@@ -684,23 +653,9 @@ template<typename T> class Matrix_t
 		{
 			ssize_t len = old->rows () * old->columns () * sizeof (T);
 
+			// memcpy is safe - the matrices should NOT overlap
 			memcpy (m_data->raw (), old->raw (), len);
-			return;
-		}
 
-		/*
-		 * Newly allocated, but includes a window so we need to carry
-		 * all the data (WiP).  Not called by CoW...
-		 *
-		 */
-
-		if (m_data->mw_prows != m_data->mw_vrows ||
-			m_data->mw_pcolumns != m_data->mw_vcolumns) {
-
-			ssize_t len = old->mw_prows * old->mw_pcolumns * sizeof (T);
-			memcpy (m_data.get()->mw_matrix->raw (), 
-					old->mw_matrix->raw (), 
-					len);
 			return;
 		}
 
@@ -719,33 +674,7 @@ template<typename T> class Matrix_t
 
 	friend Matrix_t<T> prepare_target (Matrix_t<T> A, Matrix_t<T> B)
 	{
-		Matrix_t<T> Q;
-		MatrixView_t<T> *origin = 0;
-
-		if (!A.m_data.get()->CoW ())
-			origin = A.get ();
-		else if (!B.m_data.get()->CoW ())
-			origin = B.get ();
-
-		if (origin) {
-
-			Q = Matrix_t<T> (origin->prows (), origin->pcolumns ());
-			ssize_t offset = origin->raw () - origin->mw_matrix->raw ();
-			int column = offset / origin->mw_prows;
-			int row = offset % origin->mw_prows;
-
-			assert (origin->mw_prows >= A.rows ());
-			assert (origin->mw_pcolumns >= B.columns ());
-
-			Q = Q.view (row, column, A.rows (), B.columns ());
-
-			Q.set_WiP ();
-			Q.copy (origin);
-
-		} else
-			Q = Matrix_t<T> (A.rows (), B.columns ());
-
-		return Q;
+		return Matrix_t<T> (A.rows (), B.columns ());
 	}
 
 public:
@@ -815,26 +744,7 @@ public:
 		if (m_data.get () != NULL && INVOKE->immutable ())
 			throw ("illegal assignment");
 
-#if 0 // need to implment this so that one can write x = y when x is WiP
-		if (m_data.valid () && !INVOKE->CoW ()) {
-
-			if (!INVOKE->defined (*(A.m_data.get ())))
-				("compute R, dimension mismatch")throw false;
-
-			T * __restrict base = INVOKE->raw ();
-			T * __restrict Abase = A.raw (); 
-			int vcols = INVOKE->mw_vcolumns;
-			int vrows = INVOKE->mw_vrows;
-			ssize_t drow = INVOKE->mw_prows - INVOKE->mw_vrows; 
-			ssize_t Arow = A.prows () - A.rows ();
-
-			for (int j = 0; j < vcols; ++j, base += drow, Abase += Arow)
-            	for (int i = 0; i < vrows; ++i, ++base, ++Abase)
-					*base = *Abase;
-
-		} else
-#endif
-			m_data = A.m_data;
+		m_data = A.m_data;
 
 		return *this;
 	}
@@ -916,6 +826,11 @@ public:
 	// copy a vector into a column of a matrix
 	void vec_fill (Matrix_t &v, int index)
 	{
+#ifdef __DEBUG
+		assert (v.rows () == rows ());
+		assert (index >= 0 && index < columns ());
+#endif
+
 		CoW ();
 
 		T * __restrict base = raw () + m_data->prows () * index;
@@ -925,13 +840,6 @@ public:
 			*base++ = *vbase++;
 	}
 
-#if 0
-	T &operator() (int &&row, int &&column)
-	{
-		return INVOKE->datum (row, column);
-	}
-#endif
-
 	T &operator() (int row, int column)
 	{
 #ifdef __DEBUG
@@ -940,6 +848,7 @@ public:
 #endif
 
 #ifndef __UNSAFE_ASSIGNMENT
+		// CoW is `expensive' and it can be turned off at compile time
 		CoW ();
 #endif
 		return INVOKE->datum (row, column);
@@ -993,6 +902,10 @@ public:
 
 	Matrix_t &vec_norm ()
 	{
+#ifdef __DEBUG
+		assert (columns () == 1);
+#endif
+
 		CoW ();
 
 		T M;
@@ -1006,6 +919,10 @@ public:
 
 	T vec_magnitude (void)
 	{
+#ifdef __DEBUG
+		assert (columns () == 1);
+#endif
+
 		T u = sqrt (vec_dotT ());
 
 		return u;
@@ -1069,7 +986,6 @@ public:
 	Matrix_t view (int srow, int scol, int nrows, int ncols, bool WiP = true)
 	{
 		Matrix_t A;
-//		A.m_data.reset (NULL); //  = NULL; // m_data.get ();
 
 		A.m_data =  new MatrixView_t<T> (m_data.get (),
 										srow,
@@ -1103,9 +1019,9 @@ public:
 	 * the window.
 	 *
 	 */
-	void viewSelf (int nrows, int ncolumns)
+	void viewSelf (void)
 	{
-		INVOKE->viewSelf (nrows, ncolumns);
+		INVOKE->viewSelf ();
 	}
 
 	/*
@@ -1128,10 +1044,14 @@ public:
 	 * Create a vector view in a matrix at column.  Writes in place.
 	 *
 	 */
-	Matrix_t vec_view (int column, bool WiP = true)
+	Matrix_t vec_view (const int column, bool WiP = true)
 	{
+#ifdef __DEBUG
+		assert (column >= 0 && column < columns ());
+#endif
+
 		Matrix_t v;
-		v.m_data = new MatrixView_t<T> (m_data.get (), rows (), column, true);
+		v.m_data = new MatrixView_t<T> (m_data.get (), column);
 
 		if (WiP)
 			v.set_WiP ();
@@ -1189,7 +1109,11 @@ public:
 	// dot product of 2 vectors (matrices of the form (rows, 1))
 	T vec_dot (Matrix_t &A)
 	{
-		MASSERT_RANGE (rows () ==  A.rows ());
+#ifdef __DEBUG
+		assert (columns () == A.columns () == 1);
+		assert (rows () == A.rows ());
+#endif
+
 		int __rows = rows ();
 		T * __restrict y = A.raw ();
 		T * __restrict x = raw ();
@@ -1480,7 +1404,9 @@ public:
 	}
 };
 
-// QR decomposition, called from solve_b ()
+// All QR based stuff below uses Householder reflectors.
+
+// QR decomposition, called from solveQR (), we want R to solve Ax = b
 template<typename T> void Matrix_t<T>::find_R (Matrix_t<T> &b)
 {
 	if (!MatrixView_t<T>::defined_prod (get(), b.get())) 
@@ -1570,7 +1496,7 @@ template<typename T> void Matrix_t<T>::find_R (Matrix_t<T> &b)
 	delete [] w;
 }
 
-// Solve for x in Rx = b, R is upper triangular (called from solve_b)
+// Solve for x in Rx = b, R is upper triangular (called from solveQR)
 template<typename T> Matrix_t<T> Matrix_t<T>::find_x (Matrix_t<T> &b)
 {
 	int columns = Matrix_t<T>::columns ();
@@ -1604,8 +1530,7 @@ template<typename T> Matrix_t<T> Matrix_t<T>::find_x (Matrix_t<T> &b)
 template<typename T> void Matrix_t<T>::QR (Matrix_t<T> &Q)
 {
 	CoW ();
-	Q = Matrix_t<T> (INVOKE->mw_prows, INVOKE->mw_pcolumns, 1, false);
-	Q.viewSelf (rows (), columns ());
+	Q = Matrix_t<T> (INVOKE->rows (), INVOKE->columns ());
 
 	int rows = Matrix_t<T>::rows ();
 	int columns = Matrix_t<T>::columns ();
@@ -1725,7 +1650,7 @@ template<typename T> void Matrix_t<T>::QR (Matrix_t<T> &Q)
 }
 
 /*
- * Calculates the Hessenberg similarity: A = VHV, preserves eigenvalues
+ * Calculates the Hessenberg similarity: A = V'HV, preserves eigenvalues
  *
  */
 

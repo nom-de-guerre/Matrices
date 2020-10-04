@@ -46,7 +46,7 @@ int main ()
 	B.display ("B");
 	B(__DIM >> 1, __DIM >> 1) = 3.1415926; // This will trigger a CoW
 	// second argument is number of decimal places.  default is 2
-	B.display ("B now has own copy of memory", "5");
+	B.display ("B now has own copy of memory (5, 5) = π", "2");
 	A.display ("A");
 
 	Md_t x = A.vec_view (__DIM >> 1); // x and A share memory
