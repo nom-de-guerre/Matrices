@@ -666,6 +666,7 @@ template<typename T> class Matrix_t
 
 		for (int columns = INVOKE->columns (); columns; --columns) {
 
+			// memcpy is safe as the memory does not overlap
 			memcpy (to_ptr, from_ptr, vrows * sizeof (T));
 			to_ptr += vrows;
 			from_ptr += prows;
@@ -750,18 +751,18 @@ public:
 	}
 
 	// Logical number of rows
-	int rows()
+	int rows(void)
 	{
 		return INVOKE->rows ();
 	}
 
 	// Physical number of rows
-	int prows()
+	int prows(void)
 	{
 		return INVOKE->prows ();
 	}
 
-	int columns()
+	int columns(void)
 	{
 		return INVOKE->columns ();
 	}
@@ -781,7 +782,7 @@ public:
 		return m_data->raw ();
 	}
 
-	void copy ()
+	void copy (void)
 	{
 		CoW ();
 	}
