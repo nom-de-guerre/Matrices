@@ -5,6 +5,8 @@ CFLAGS=-Wall -I. $(DEBUG) $(OPTIONS)
 HDEPS = matrix.h
 DEPS = Makefile $(HDEPS)
 
+all: example regression eigen
+
 eigen: eigen.cc francis.cc $(DEPS)
 	$(CC) eigen.cc francis.cc -o $@ $(CFLAGS)
 	eigen
@@ -16,8 +18,6 @@ example: example.cc $(DEPS)
 regression: regression.cc $(DEPS)
 	$(CC) regression.cc -o $@ $(CFLAGS)
 	regression
-
-all: example regression eigen
 
 clean:
 	rm regression

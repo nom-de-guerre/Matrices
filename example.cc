@@ -43,17 +43,33 @@ int main ()
 	A.display ("A");
 
 	Md_t B = A;					// B and A share memory - copy-on-write (CoW)
-	B.display ("B");
+	B.display ("B - shares view and data");
 	B(__DIM >> 1, __DIM >> 1) = 3.1415926; // This will trigger a CoW
 	// second argument is number of decimal places.  default is 2
-	B.display ("B now has own copy of memory (5, 5) = π", "2");
+	B.display ("B now has own copy of memory (5, 5) = π", "3");
 	A.display ("A");
 
+	/*
+	 * Create a view of a column in A.  The default for vec_view is
+	 * write-in-place, so writing the vector will be reflected in A.
+	 * It can be turned off by calling vec_view (column, false).  It
+	 * can also be turned off/on, like any matrix, with set_CoW/set_WiP.
+	 *
+	 */
 	Md_t x = A.vec_view (__DIM >> 1); // x and A share memory
-	x.display ("x");
-	x.set_WiP ();					// turn off Cow - updates reflected in A
-	x(0, 0)	= 2.71828182;
-	A.display ("A");
+	Md_t z = x;				// z, x and A share memory
+	x.display ("x = A(, 5)");
+	z.display ("z = x");
+	z.set_CoW (); 			// set to copy-on-write (sharing until update)
+	x(0, 0)	= 2.71828182;	// default is write in place, reflected in A
+	z(1, 0)	= 2.71828182;	// not reflected in A (z now has private memory)
+	z.display ("z CoW");
+
+	A.display ("A: x modified me");
+	z.display ("z: not me though!");
+
+	x.viewOriginal (); // explode x to full underlying size
+	x.display ("independent view of A");
 
 	// create a matrix with an initial value of 0.5 - the last argument
 	// means zero the matrix and initialize the diagonal
