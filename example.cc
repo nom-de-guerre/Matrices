@@ -61,8 +61,8 @@ int main ()
 	x.display ("x = A(, 5)");
 	z.display ("z = x");
 	z.set_CoW (); 			// set to copy-on-write (sharing until update)
-	x(0, 0)	= 2.71828182;	// default is write in place, reflected in A
 	z(1, 0)	= 2.71828182;	// not reflected in A (z now has private memory)
+	x(0, 0)	= 2.71828182;	// default is write in place, reflected in A
 	z.display ("z CoW");
 
 	A.display ("A: x modified me");

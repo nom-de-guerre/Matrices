@@ -201,23 +201,12 @@ template<typename T> struct MatrixView_t
 	}
 
 	/*
-	 * Restore the underlying matrix to full view.
-	 *
-	 * CoW
+	 * shallowCoW
 	 *
 	 */
-	MatrixView_t (MatrixView_t<T> *matrixView) :
-		mw_matrix (matrixView->mw_matrix),
-		mw_serialno (++serialno),
-		mw_transpose (false),
-		mw_CoW (true),
-		mw_immutable (false),
-		mw_prows (matrixView->mw_prows),
-		mw_pcolumns (matrixView->mw_pcolumns),
-		mw_vrows (mw_prows),
-		mw_vcolumns (mw_pcolumns)
+	MatrixView_t (MatrixView_t<T> *matrixView)
 	{
-		mw_base = matrixView->mw_matrix->raw ();
+		*this = *matrixView;
 
 		init ();
 	}
@@ -347,23 +336,9 @@ template<typename T> struct MatrixView_t
 	// If we're a window into a sub-matrix explode to full view again
 	void viewSelf (void)
 	{
-#if 0
-		MASSERT_RANGE (nrows <= mw_prows);
-		MASSERT_RANGE (ncolumns <= mw_pcolumns);
-
-		mw_vrows = nrows;
-		mw_vcolumns = ncolumns;
+		mw_vrows = mw_prows = mw_matrix->md_rows;
+		mw_vcolumns = mw_pcolumns = mw_matrix->md_columns;
 		mw_base = raw ();
-
-		delete [] mw_rows;
-
-		mw_rows = new __agg_t<T>(mw_vrows);
-
-		T *p = raw ();
-
-		for (int i = 0; i < mw_vrows; i++, ++p)
-			mw_rows(i).set (p, mw_prows);
-#endif
 	}
 
 	void update ()
@@ -612,6 +587,14 @@ template<typename T> class Matrix_t
 		return m_data.get ();
 	}
 
+	void CoWShallow (void)
+	{
+		if (m_data.exclusive ())
+			return;
+
+		m_data = new MatrixView_t<T> (m_data.get ());
+	}
+
 	// Determine if copy-on-write is neccessary
 	inline void CoW (void)
 	{
@@ -630,15 +613,14 @@ template<typename T> class Matrix_t
 			if (INVOKE->mw_matrix.use_count () == 1)
 				return;
 
-		// keep a reference in case another thread deletes
-		MatrixView_t<T> old = m_data.get ();
-
+		mptr_t<T> old = m_data;
 		m_data = new MatrixView_t<T> (INVOKE->rows (), INVOKE->columns ());
-		copy (&old);
+
+		copy (old);
 	}
 
 	// copy a matrix
-	void copy (MatrixView_t<T> *old)
+	void copy (mptr_t<T> old)
 	{
 		/*
 		 * Copying can take the form of:
@@ -901,6 +883,17 @@ public:
 		return *this;
 	}
 
+	T vec_magnitude (void)
+	{
+#ifdef __DEBUG
+		assert (columns () == 1);
+#endif
+
+		T u = sqrt (vec_dotT ());
+
+		return u;
+	}
+
 	Matrix_t &vec_norm ()
 	{
 #ifdef __DEBUG
@@ -911,22 +904,11 @@ public:
 
 		T M;
 
-		M = sqrt (vec_dotT ());
+		M = vec_magnitude ();
 
 		*this /= M;
 
 		return *this;
-	}
-
-	T vec_magnitude (void)
-	{
-#ifdef __DEBUG
-		assert (columns () == 1);
-#endif
-
-		T u = sqrt (vec_dotT ());
-
-		return u;
 	}
 
 	Matrix_t<T> solveQR (Matrix_t<T> &b)
@@ -960,21 +942,29 @@ public:
 
 	void set_WiP ()
 	{
+		CoWShallow ();
+
 		INVOKE->set_WiP ();
 	}
 
 	void set_CoW ()
 	{
+		CoWShallow ();
+
 		INVOKE->set_CoW ();
 	}
 
 	void set_ro ()
 	{
+		CoWShallow ();
+
 		INVOKE->set_immutable ();
 	}
 
 	void set_rw ()
 	{
+		CoWShallow ();
+
 		INVOKE->set_mutable ();
 	}
 
@@ -1001,26 +991,12 @@ public:
 	}
 
 	/*
-	 * Create a view of the matrix that restores its original
-	 * full physical dimensions.
+	 * If the logical view is not equal to the physical view (e.g. a
+	 * column vector) dilate the view to compass the entire physical
+	 * matrix.
 	 *
 	 */
-	Matrix_t viewBase (void)
-	{
-		Matrix_t A;
-		A.m_data = new MatrixView_t<T> (m_data.get ());
-
-		A.set_WiP ();
-
-		return A;
-	}
-
-	/*
-	 * Modify the existing view of a matrix to shrink, or pull up,
-	 * the window.
-	 *
-	 */
-	void viewSelf (void)
+	void viewOriginal (void)
 	{
 		INVOKE->viewSelf ();
 	}
@@ -1033,7 +1009,13 @@ public:
 	Matrix_t viewShrink (int rows, int  columns, bool WiP = true)
 	{
 		Matrix_t Q;
-		Q.m_data = new MatrixView_t<T> (m_data.get (), rows, columns, false);
+		Q.m_data = new MatrixView_t<T> (
+			m_data.get (), 
+			0,
+			0,
+			rows, 
+			columns, 
+			false);
 
 		if (WiP)
 			Q.set_WiP ();
@@ -1170,7 +1152,7 @@ public:
 		return max;
 	}
 
-	// The matrix Frobenius  norm
+	// The matrix Frobenius norm
 	T Frobenius (void)
 	{
 		T * __restrict p = INVOKE->raw ();
@@ -2045,6 +2027,17 @@ Matrix_t<T>::ImplicitQRStep (int N, double shifts[], Matrix_t &Q)
 	delete [] w;
 }
 
+/*
+ * Compute the Cholesky decomposition.  The answer, which is lower
+ * triangular, is placed in G.  G must already own memory.  It is not
+ * zero'ed so elements above the diagonal will be preserved.  Doesn't matter
+ * for solving SPD matrices as the code only accesses valid elements.
+ *
+ * To get a "clean" decomposition allocate:
+ *
+ * Matrix_t<T> G (n, n, 0.0, true);
+ *
+ */
 template<typename T> bool
 Matrix_t<T>::ComputeCholesky (Matrix_t<T> &G)
 {
