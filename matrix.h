@@ -440,7 +440,7 @@ template<typename T> struct MatrixView_t
 		for (int i = 0; i < rows(); i++)
 		{
 			for (int j = 0; j < columns(); j++)
-				printf ("%e\t", (double) (*this)(i, j));
+				printf ("%e\t", this->datum (i, j));
 
 			printf ("\n" );
 		}
@@ -1014,8 +1014,7 @@ public:
 			0,
 			0,
 			rows, 
-			columns, 
-			false);
+			columns);
 
 		if (WiP)
 			Q.set_WiP ();
