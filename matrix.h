@@ -338,7 +338,7 @@ template<typename T> struct MatrixView_t
 	{
 		mw_vrows = mw_prows = mw_matrix->md_rows;
 		mw_vcolumns = mw_pcolumns = mw_matrix->md_columns;
-		mw_base = raw ();
+		mw_base = mw_matrix->raw ();
 	}
 
 	void update ()
