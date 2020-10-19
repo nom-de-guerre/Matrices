@@ -795,8 +795,6 @@ public:
 		int rows = INVOKE->rows ();
 		int columns = INVOKE->columns ();
 
-		srand ((seed == 0 ? time (0) : seed));
-
 		for (int i = 0; i < rows; ++i)
 			for (int j = 0; j < columns; ++j)
 			{
@@ -911,6 +909,14 @@ public:
 		return *this;
 	}
 
+	void pipe (Matrix_t<T> v)
+	{
+#ifdef __DEBUG
+		assert (v.rows () == rows () && v.columns () == columns ());
+#endif
+		copy (v.m_data);
+	}
+
 	Matrix_t<T> solveQR (Matrix_t<T> &b)
 	{
 		Matrix_t x;
@@ -1006,20 +1012,10 @@ public:
 	 * WiP true will write in place.
 	 *
 	 */
-	Matrix_t viewShrink (int rows, int  columns, bool WiP = true)
+	void viewBlock (int rows, int  columns)
 	{
-		Matrix_t Q;
-		Q.m_data = new MatrixView_t<T> (
-			m_data.get (), 
-			0,
-			0,
-			rows, 
-			columns);
-
-		if (WiP)
-			Q.set_WiP ();
-
-		return Q;
+		m_data->mw_vrows = rows;
+		m_data->mw_vcolumns = columns;
 	}
 
 	/*
@@ -1029,7 +1025,7 @@ public:
 	Matrix_t vec_view (const int column, bool WiP = true)
 	{
 #ifdef __DEBUG
-		assert (column >= 0 && column < columns ());
+		assert (column >= 0 && column < m_data->pcolumns ());
 #endif
 
 		Matrix_t v;
