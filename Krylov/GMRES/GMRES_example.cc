@@ -31,15 +31,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <assert.h>
 #include <float.h>
 
-#include <GMRES.h>
-#include <francis.h>
+#include <GMRES.h> // defines typedef Matrix_t<double> Md_t
 
 int __DIM = 1000;
 
 void run ();
 void unitary (Krylov_t &);
 
-int __m;
+int __m = 200;
 
 int main (int argc, char *argv[])
 {
@@ -48,9 +47,10 @@ int main (int argc, char *argv[])
 	if (argc > 1)
 		seed = atol (argv[1]);
 
-	__m = atoi (argv[2]);
+	if (argc > 2)
+		__m = atoi (argv[2]);
 
-//	printf ("Using seed %ld\n", seed);
+	printf ("Using seed %ld\n", seed);
 
 	srand (seed);
 
@@ -66,7 +66,7 @@ void run ()
 
 	/*
 	 * Generate a diagonaly dominant matrix that is fairly sparse
-	  and asymetric.
+	 * and asymetric.
 	 *
 	 */
 	for (int i = 0; i < __DIM; ++i)
@@ -103,29 +103,6 @@ void run ()
 	Md_t b_save = b;
 	Md_t x = K.solveQR (__b);
 
-#if 0
-	EigenFrancis_t Aleph;
-	int N = Aleph.CalcEigenValues (Spectrum);
-	Aleph.SortEigenValues ();
-	printf ("%d eigen values ∆ = %f\n", 
-		N, 
-		Aleph.ef_EigenValues[N - 1].real - 
-		Aleph.ef_EigenValues[0].real);
-
-	for (int i = 0; i < N; ++i)
-		printf ("%f\t%fi\n", 
-			Aleph.ef_EigenValues[i].real, 
-			Aleph.ef_EigenValues[i].imag);
-
-	printf ("%f\t%fi\n", 
-		Aleph.ef_EigenValues[0].real, 
-		Aleph.ef_EigenValues[0].imag);
-
-	printf ("%f\t%fi\n", 
-		Aleph.ef_EigenValues[N - 1].real, 
-		Aleph.ef_EigenValues[N - 1].imag);
-#endif
-
 	__b = A * x;
 	assert (__b.equal_eps (b, 1e-10));
 
@@ -135,31 +112,19 @@ void run ()
 	 *
 	 */
 
-//	printf ("STARTING RUN\n");
+	printf ("STARTING RUN\n");
 
 	double residual;
 	bool solved;
 	Md_t _x;
 
-	/*
-	 * Increase projected matrix size until we find a solution.
-	 *
-	 */
-	for (int m = 100; m < 500; m += 50)
-	{
-		GMRES_t Z (__m, A, b);
-		Z.SetTolerance (0.5); // Euclidean magnitude of residual vector
-		solved = Z.Solve (_x, residual);
+	GMRES_t Z (__m, A, b);
+	Z.SetTolerance (0.5); // Euclidean magnitude of residual vector
+	solved = Z.Solve (_x, residual);
 
-		printf ("%f\t%f\t%d\n", 
-			residual, 
-			(x - _x).vec_magnitude (),
-			__m);
-
-		if (solved)
-			break;
-	}
-
-//	printf ("Error = %f\n", (x - _x).vec_magnitude ());
+	printf ("Residual = %f\tError = %f\t%d\n", 
+		residual, 
+		(x - _x).vec_magnitude (),
+		__m);
 }
 

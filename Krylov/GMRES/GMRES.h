@@ -34,7 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * An example use of Krylov_t by implementing a naive Generalized Minimum 
  * Residual (GMRES).
  *
- * It is a simple and naive implementation intended to demonstrate GMRES
+ * It is a simple and naive implementation intended to demonstrate how GMRES
  * works in code.
  *
  */
@@ -108,9 +108,9 @@ GMRES_t::Solve (Md_t &xm, double &residue)
 
 		if (residue == last)
 		{
-//			break; // GMRES has stalled.  See Saad for suggestions.
+			// GMRES has stalled.  See Saad for further suggestions.
 			k_n += 50;
-printf ("broken m = %d\n", k_n);
+			printf ("Increasing m = %d\n", k_n);
 		}
 
 		last = residue;
@@ -119,11 +119,8 @@ printf ("broken m = %d\n", k_n);
 
 		++restarts;
 
-#if 0
-		if ((restarts % 1000) == 0)
+		if ((restarts % 10) == 0)
 			printf ("|r| = %f\n", residue);
-#endif
-
 	}
 
 	return rc;
@@ -132,7 +129,8 @@ printf ("broken m = %d\n", k_n);
 /*
  * GMRES (Saad, chapter 6, Iterative Methods for Sparse Linear Systems)
  *
- * Find an aproximation, x*, to Ax = b
+ * Find an aproximation, x*, to Ax = b based on AV = VH, where V spans
+ * Kn (Krylov subspace generated from A).
  *
  *    i) Build Kn
  *   ii) find x* that is a member of Kn, so x* = Vy
@@ -170,7 +168,7 @@ GMRES_t::step (double &residue)
 
 /*
  * Use Givens rotations to transform Hessenberg matrix to upper triangular.
- * GV (4th edition) Section 5.1.8
+ * GVL (4th edition) Section 5.1.8
  *
  * |b|e1 is taken care of while computing the upper triangular.
  *
