@@ -3,10 +3,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include <ncurses.h>
-
-#include <threads.h>
-
 #include <softmax.h>
 
 #define N_POINTS	30
