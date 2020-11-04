@@ -1,0 +1,161 @@
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
+#include <ncurses.h>
+
+#include <threads.h>
+
+#include <regression.h>
+
+#define N_POINTS	32
+
+#define PI 			3.141592653589793
+#define PI_2		1.570796326794897
+#define PI_DELTA	(PI_2 / N_POINTS)
+
+#define NPOINTS		30
+
+double Data [] = {
+-2.29240727171952, -1.48424491989863, 3,
+ 1.45088565409287, -1.32321551055482, 4,  
+ 0.808601867799222, -2.32796539215308, 4,  
+ 0.183481694256994, -2.05766224971618, 4,  
+ -0.204291507285715, -1.81937303344634, 3,  
+ 0.301449522727812, -0.768232024664306, 4,  
+ 1.23387543994358, 1.09771393780718, 1,  
+ -1.84957767478188, -0.0640464765818828, 3,  
+ 1.344300515513, 0.036052920017901, 1,  
+ 0.393539945144457, 2.03919458048562, 1,  
+ 1.81117538829371, -0.988161239363614, 4,  
+ -0.654034443931663, -0.0969826508846382, 3,  
+ 0.797384014510628, 0.743364727616669, 1,  
+ -1.00447808294127, 0.551442894725597, 2,  
+ -0.310728947072935, 0.793562101162612, 2,  
+ 1.55619381639037, 2.2686695526798, 1,  
+ 1.99519335633803, -1.55412889908004, 4,  
+ 0.17573892567568, 0.507665140740326, 1,  
+ -0.471425470836951, -1.00721430045691, 3,  
+ -2.01966127968543, -0.622124532304338, 3,  
+ -0.440057045305845, -1.88674615688435, 3,  
+ -2.57387266147432, 0.958297481622516, 2,  
+ -0.554651674369894, 1.23332371281191, 2,  
+ -0.709584872227339, 0.401179837712257, 2,  
+ 1.77271611380485, -1.50125556804123, 4,  
+ 0.0795724478686849, -0.855147434569206, 4,  
+ -1.34890934965629, 1.04308948480022, 2,  
+ 1.21392363824006, -2.18571415798367, 4,  
+ 0.355235896576844, -2.71029654718674, 4,  
+ 0.730601609562618, -0.62686190817954, 4
+};
+
+training_t *BuildTrainingSet (int);
+void Run (int *);
+
+int main (int argc, char *argv[])
+{
+	training_t K (2, 2, 2, pants);
+
+	if (argc < 2)
+	{
+		printf ("Usage: LoW hidden-layers output-layers\n");
+		exit (-1);
+	}
+
+#ifdef __TANH_ACT_FN
+	printf ("TANH Build\n");
+#endif
+
+	long seed = time (0);
+
+	printf ("Seed %ld\n", seed);
+
+	srand (seed);
+
+	int N_layers = argc - 1;
+	int *layers = new int [N_layers + 1];
+	layers[0] = N_layers;
+	for (int i = 0; i < N_layers; ++i)
+		layers[i + 1] = atoi (argv[i + 1]);
+
+	Run (layers);
+
+	delete [] layers;
+}
+
+void Run (int *layers)
+{
+	double soln_MSE = 3.24373895083289e-05;
+
+	training_t *O = BuildTrainingSet (N_POINTS);
+	Regression_t *Np = NULL;
+	double guess;
+
+	Np = new Regression_t (layers + 1, layers[0]);
+	Np->setMSE (soln_MSE);
+	Np->setRPROP (5000);
+
+	try {
+
+		Np->TrainLifeSign (O, 1, 250000);
+
+	} catch (const char *excep) {
+
+		printf ("EXP: %s\n", excep);
+		exit (-1);
+	}
+
+	bool accept_soln = true;
+	double error;
+
+	for (int i = 0; i < N_POINTS; ++i)
+	{
+		guess = Np->Compute ((*O)[i][0]);
+
+		error = (*O)[i][1] - guess;
+		error *= error;
+
+		if (error > soln_MSE)
+			accept_soln = false;
+
+		printf ("DJS_RESULT\t%1.8f\t%1.8f\t%1.8f\n",
+			(*O)[i][0],
+			(*O)[i][1],
+			guess);
+	}
+
+#if 1
+	O = BuildTrainingSet (64);
+	for (int i = 0; i < O->t_N; ++i)
+	{
+		guess = Np->Compute ((*O)[i][0]);
+		printf ("DJS_INFER\t%1.8f\t%1.8f\t%1.8f\n",
+			(*O)[i][0],
+			(*O)[i][1],
+			guess);
+	}
+#endif
+
+	if (accept_soln)
+		printf (" *** Solution ACCEPTED.\n");
+	else
+		printf (" *** Solution REJECTED.\n");
+
+}
+
+training_t *BuildTrainingSet (int N)
+{
+	training_t *O = new training_t (N, 1, 1);
+
+	for (int i = 0; i < N; ++i)
+	{
+		double sample = (double) rand () / RAND_MAX;
+
+		(*O)[i][0] = sample * PI_2;
+		(*O)[i][1] = sin ((*O)[i][0]);
+	}
+
+	return O;
+}
+
