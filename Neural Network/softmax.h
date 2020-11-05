@@ -10,6 +10,7 @@
 class Softmax_t : public NNet_t<Softmax_t>
 {
 	double			*c_P;
+	int				c_Correct;
 
 public:
 
@@ -88,7 +89,9 @@ double Softmax_t::bprop (const TrainingRow_t &x, const int row, int &dEj)
 	double loss;
 	int answer = static_cast<int> (x[n_Nin]);
 
-	Compute (x); // forces computation of Softmax Pi
+	int result = Compute (x); // forces computation of Softmax Pi
+	if (result == answer)
+		++c_Correct;
 
 	loss = -log (c_P[answer]);
 
@@ -175,24 +178,12 @@ double Softmax_t::error (DataSet_t const * tp)
 
 void Softmax_t::Cycle (void)
 {
+	c_Correct = 0;
 }
 
 bool Softmax_t::Test (DataSet_t const * const tp)
 {
-	int correct = 0;
-
-	for (int i = 0; i < tp->t_N; ++i)
-	{
-		const TrainingRow_t p = (*tp)[i];
-
-		if (Compute (p) == p[2])
-			++correct;
-	}
-
-	if (correct == tp->t_N)
-		return true;
-
-	return false;
+	return (c_Correct == tp->t_N ? true : false);
 }
 
 #endif // header inclusion
