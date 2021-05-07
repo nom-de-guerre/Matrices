@@ -40,21 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <memory>
 
-static int serialno = 0;
-
-/*
- * Useful for debugging performance problems and understanding
- * the price of micro-ops.
- *
- */
-
-static __inline int64_t __djs_rdtsc (void)
-{
-  int64_t rv;
-
-  __asm __volatile("rdtsc" : "=A" (rv));
-  return rv;
-}
+static int serialNo = 0;
 
 #define MACH_EPS 2.2204460492503131e-16 // for IEEE double (64 bits)
 #define SIGN(X) (signbit (X) ? -1 : 1)
@@ -129,7 +115,7 @@ template<typename T> struct MatrixView_t
 	std::shared_ptr< MatrixData_t<T> > mw_matrix;
 	T					*mw_base;
 
-	int					mw_serialno;
+	int					mw_serialNo;
 	bool				mw_transpose;
 	bool				mw_CoW;
 	bool				mw_immutable;
@@ -186,7 +172,7 @@ template<typename T> struct MatrixView_t
 					int nrows,		// delta from start
 					int ncols) :
 		mw_matrix (matrixView->mw_matrix),
-		mw_serialno (++serialno),
+		mw_serialNo (++serialNo),
 		mw_transpose (false),
 		mw_CoW (true),
 		mw_immutable (false),
@@ -219,7 +205,7 @@ template<typename T> struct MatrixView_t
 	 */
 	MatrixView_t (MatrixView_t<T> *matrixView, const int column) :
 		mw_matrix (matrixView->mw_matrix),
-		mw_serialno (++serialno),
+		mw_serialNo (++serialNo),
 		mw_transpose (false),
 		mw_CoW (true),
 		mw_immutable (false),
@@ -241,7 +227,7 @@ template<typename T> struct MatrixView_t
 	 */
 	MatrixView_t (int __n, int __m) :
 		mw_matrix (new MatrixData_t<T> (__n, __m)),
-		mw_serialno (++serialno),
+		mw_serialNo (++serialNo),
 		mw_transpose (false),
 		mw_CoW (true),
 		mw_immutable (false),
@@ -264,7 +250,7 @@ template<typename T> struct MatrixView_t
 	 */
 	MatrixView_t (int __n, int __m, T __A[]) :
 		mw_matrix (new MatrixData_t<T> (__n, __m)),
-		mw_serialno (++serialno),
+		mw_serialNo (++serialNo),
 		mw_transpose (false),
 		mw_CoW (true),
 		mw_immutable (false),
@@ -297,7 +283,7 @@ template<typename T> struct MatrixView_t
 	 */
 	MatrixView_t (int __n, int __m, T __x, bool not_Diagonal = false) :
 		mw_matrix (new MatrixData_t<T> (__n, __m)),
-		mw_serialno (++serialno),
+		mw_serialNo (++serialNo),
 		mw_transpose (false),
 		mw_CoW (true),
 		mw_immutable (false),
@@ -343,7 +329,7 @@ template<typename T> struct MatrixView_t
 
 	void update ()
 	{
-		mw_serialno = ++serialno;
+		mw_serialNo = ++serialNo;
 	}
 
 	int rows () 
@@ -406,7 +392,7 @@ template<typename T> struct MatrixView_t
 		printf( "%s\t%p (%p)\t%d\t%d (%d) x %d (%d)\t (%s)\n", name, 
 			this, 
 			mw_matrix->raw (),
-			mw_serialno, 
+			mw_serialNo, 
 			rows(), 
 			mw_prows,
 			columns (),
@@ -430,7 +416,7 @@ template<typename T> struct MatrixView_t
 		printf( "%s\t%p (%p)\t%d\t%d (%d) x %d (%d)\t (%s)\n", name, 
 			this, 
 			mw_matrix->raw (),
-			mw_serialno, 
+			mw_serialNo, 
 			rows(), 
 			mw_prows,
 			columns (),
@@ -730,6 +716,13 @@ public:
 		m_data = A.m_data;
 
 		return *this;
+	}
+
+	// unique identifier of the matrix
+	int ID (void)
+	{
+		int tmp = reinterpret_cast<std::uintptr_t>(m_data.get ());
+		return (int) tmp;
 	}
 
 	// Logical number of rows

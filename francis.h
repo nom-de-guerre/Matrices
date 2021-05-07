@@ -94,6 +94,7 @@ class EigenFrancis_t {
 	void ChaseBulge (Md_t &);
 	bool RawStep (Md_t &, int);
 	bool ApplyBulge (Md_t &, Md_t &);
+	int CalcEigenValues (Md_t &);
 
 	void makeHeap (int, int);
 
@@ -129,7 +130,7 @@ public:
 	}
 
 	int CalcEigenValuesHessenberg (Md_t &); // general square matrix
-	int CalcEigenValues (Md_t &); // already in Hessenberg form
+	int CalcEigenValuesGeneral (Md_t &); // already in Hessenberg form
 
 	/*
 	 * This will find the eigen vector associated with the eigen value

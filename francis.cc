@@ -39,7 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
 
-int EigenFrancis_t::CalcEigenValues (Md_t &A)
+int EigenFrancis_t::CalcEigenValuesGeneral (Md_t &A)
 {
 	A.HessenbergSimilarity ();
 
@@ -57,10 +57,6 @@ int EigenFrancis_t::CalcEigenValues (Md_t &A)
 
 int EigenFrancis_t::CalcEigenValuesHessenberg (Md_t &A)
 {
-	Md_t Francis;
-	int shift;
-	int rows = A.rows ();
-
 	ef_totalIterations = 0;
 	if (ef_EigenValues)
 		delete [] ef_EigenValues;
@@ -68,22 +64,36 @@ int EigenFrancis_t::CalcEigenValuesHessenberg (Md_t &A)
 	ef_EigenValues = new conj_t [A.rows ()];
 	ef_N = 0;
 
-	A.set_WiP ();
+	return CalcEigenValues (A);
+}
+
+int EigenFrancis_t::CalcEigenValues (Md_t &A)
+{
+	Md_t Francis;
+	int shift;
+	int rows = A.rows ();
+	int ID = A.ID ();
+
+#ifdef __DEBUG_FRANCIS
+	printf (" ⎡\t%d\n", ID);
+#endif
 
 	Francis = A;
 
 	for (int i = rows; i > 0; i -= shift)
 	{
-		Md_t Ai = Francis;
-		Ai.set_WiP ();
-
 		// shift and iterate (QR) for Eigenvalue
-		shift = IterateAndShift (Ai);
+		shift = IterateAndShift (Francis);
+#ifdef __DEBUG_FRANCIS
+		printf (" ***\t%d\t%d\t%d\n", i, shift, ef_N);
+#endif
 		if (shift < 0)
 			break;	// didn't converge - we're done
-
-		Francis = Ai;
 	}
+
+#ifdef __DEBUG_FRANCIS
+	printf (" ⎣\t%d\t%d\n", ID, ef_N);
+#endif
 
 	return ef_N;
 }
@@ -254,7 +264,7 @@ int EigenFrancis_t::IterateAndShift (Md_t &A)
 			ef_EigenValues[ef_N].imag = 0;
 			++ef_N;
 
-			A = A.view (0, 0, last, last);
+			A.viewBlock (last, last);
 
 			deflate = 1;
 			working = false;
@@ -265,7 +275,7 @@ int EigenFrancis_t::IterateAndShift (Md_t &A)
 
 			ef_N += SchurSubMatrix (A, pivot, ef_EigenValues + ef_N);
 
-			A = A.view (0, 0, last - 1, last - 1);
+			A.viewBlock (last - 1, last - 1);
 			deflate = 2;
 			working = false;
 
@@ -535,7 +545,6 @@ bool EigenFrancis_t::FindEigenVectorReal (double lambda, Md_t &A, Md_t &u)
 
     u.set_WiP ();
 
-    // _Ax_n = x_n+1 -> Ax_n+1=x_n, factor with QR
     while (true) {
 
         scratch_A = _A;
@@ -549,17 +558,6 @@ bool EigenFrancis_t::FindEigenVectorReal (double lambda, Md_t &A, Md_t &u)
 		for (int i = 0; i < rows; ++i)
 			if (r_inf < fabs (d(i, 0)))
 				r_inf = fabs (d(i, 0));
-
-#if 0
-       	Md_t Rayleigh = A * u;
-       	Rayleigh = u.transpose () * Rayleigh;
-       	double quotient = Rayleigh[0][0];
-        double r = ((A * u - lambda * u).vec_magnitude ());
-		double R = lambda - quotient;
-
-		printf ("Halt conditions %e\t%e\t%e\n", r, halt, A.norm_inf ());
-		printf ("Rayleigh %e %f\n", quotient / lambda, quotient);
-#endif
 
         if (r_inf <= halt)
             break;

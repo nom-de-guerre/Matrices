@@ -70,7 +70,7 @@ void run (void)
 
 	EigenFrancis_t FR;
 
-	int N = FR.CalcEigenValues (A);
+	int N = FR.CalcEigenValuesGeneral (A);
 
 	printf ("Finished Processing: %d iterations\n", FR.N_Iterations ());
 
@@ -79,11 +79,12 @@ void run (void)
 	int real = 0;
 	for (int i = 0; i < FR.ef_N; ++i) 
 	{
+		double residual;
+
 		if (FR.ef_EigenValues[i].imag)
 			continue;
 
 		++real;
-
 		A = _A;
 
 		Md_t u (A.rows (), 1);
@@ -102,7 +103,9 @@ void run (void)
 		}
 
 		Md_t r = (A * u - FR.ef_EigenValues[i].real * u);
-		printf (" - residual %e\n", r.vec_magnitude ());
+		residual = r.vec_magnitude ();
+		printf (" - residual %e\n", residual);
+		assert (fabs (residual) < 1e-9);
 	}
 
 	printf ("Finished processing %d eigenvalues, %d are real\n", N, real);
