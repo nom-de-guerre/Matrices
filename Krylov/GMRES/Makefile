@@ -1,4 +1,5 @@
-DEBUG=-D__DEBUG
+# DEBUG=-D__DEBUG
+DEBUG=-O3
 OPTIONS= $(OUTSIDE)
 CC=g++
 CFLAGS=-Wall -I. -I.. -I../.. $(DEBUG) $(OPTIONS)

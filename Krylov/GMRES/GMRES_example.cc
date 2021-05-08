@@ -38,17 +38,37 @@ int __DIM = 1000;
 void run ();
 void unitary (Krylov_t &);
 
-int __m = 200;
+int KrylovDim = 200;
 
 int main (int argc, char *argv[])
 {
 	long seed = time (0);
+	char opt;
 
-	if (argc > 1)
-		seed = atol (argv[1]);
+	while (true)
+	{
+		opt = getopt (argc, argv, "s:m:");
+		if (opt == -1)
+			break;
 
-	if (argc > 2)
-		__m = atoi (argv[2]);
+		switch (opt)
+		{
+		case 's':
+
+			seed = atol (optarg);
+			break;
+
+		case 'm':
+
+			KrylovDim = atoi (optarg);
+			break;
+
+		default:
+
+			printf ("usage: %s [-s seed] [-m size of Km]\n", argv[0]);
+			exit (-1);
+		}
+	}
 
 	printf ("Using seed %ld\n", seed);
 
@@ -97,11 +117,12 @@ void run ()
 
 	b.randomly_fill (5);
 
-	Md_t K = A.Copy ();
-	Md_t Spectrum = K;
+	Md_t QR = A.Copy ();
 	Md_t __b = b;
 	Md_t b_save = b;
-	Md_t x = K.solveQR (__b);
+
+	printf ("Solving with QR\n");
+	Md_t x = QR.solveQR (__b);
 
 	__b = A * x;
 	assert (__b.equal_eps (b, 1e-10));
@@ -112,19 +133,20 @@ void run ()
 	 *
 	 */
 
-	printf ("STARTING RUN\n");
+	printf ("Solving with GMRES\n");
 
 	double residual;
 	bool solved;
 	Md_t _x;
 
-	GMRES_t Z (__m, A, b);
-	Z.SetTolerance (0.5); // Euclidean magnitude of residual vector
-	solved = Z.Solve (_x, residual);
+	GMRES_t K (KrylovDim, A, b, 1000);
+	K.SetTolerance (0.5); // Euclidean magnitude of residual vector
+	solved = K.Solve (_x, residual);
 
-	printf ("Residual = %f\tError = %f\t%d\n", 
+	printf ("Restarts = %d\tResidual = %f\tError = %f\t%d\n", 
+		K.GetIterations (),
 		residual, 
 		(x - _x).vec_magnitude (),
-		__m);
+		KrylovDim);
 }
 

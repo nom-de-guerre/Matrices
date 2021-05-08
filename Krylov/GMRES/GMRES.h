@@ -42,7 +42,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class GMRES_t : private Krylov_t
 {
 	int				gm_restarts;
-	double			gm_residue;
+	double			gm_residual;
+	int				gm_iterations;
 
 	void init ()
 	{
@@ -56,7 +57,8 @@ public:
 	GMRES_t (int n, Ms_t &A, Md_t &b) :
 		Krylov_t (A, b, n),
 		gm_restarts (10),
-		gm_residue (0.5)
+		gm_residual (0.5),
+		gm_iterations (0)
 	{
 		init ();
 	}
@@ -64,7 +66,8 @@ public:
 	GMRES_t (int n, Ms_t &A, Md_t &b, int restarts) :
 		Krylov_t (A, b, n),
 		gm_restarts (restarts),
-		gm_residue (0.5)
+		gm_residual (0.5),
+		gm_iterations (0)
 	{
 		init ();
 	}
@@ -75,7 +78,12 @@ public:
 
 	void SetTolerance (double residue)
 	{
-		gm_residue = residue;
+		gm_residual = residue;
+	}
+
+	int GetIterations (void) const
+	{
+		return gm_iterations;
 	}
 
 	bool Solve (Md_t &, double &);
@@ -87,12 +95,10 @@ GMRES_t::Solve (Md_t &xm, double &residue)
 	xm = Md_t (k_b.rows (), 1, 0.0);
 	bool rc = false;
 	double last = DBL_MAX;
-	int restarts = 0;
 	Md_t _x;
 	Md_t r;
 
-//	for (int i = 0; i < gm_restarts; ++i)
-	while (rc == false)
+	for (int i = 0; i < gm_restarts; ++i)
 	{
 		_x = step (residue);
 
@@ -100,7 +106,7 @@ GMRES_t::Solve (Md_t &xm, double &residue)
 
 		r = k_b - k_A * xm;
 
-		if (residue <= gm_residue)
+		if (residue <= gm_residual)
 		{
 			rc = true;
 			break;
@@ -117,10 +123,12 @@ GMRES_t::Solve (Md_t &xm, double &residue)
 
 		Restart (r, k_n);
 
-		++restarts;
+		++gm_iterations;
 
-		if ((restarts % 10) == 0)
+#ifdef __DEBUG
+		if ((gm_iterations % 10) == 0)
 			printf ("|r| = %f\n", residue);
+#endif
 	}
 
 	return rc;
