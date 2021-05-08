@@ -72,9 +72,9 @@ int EigenFrancis_t::CalcEigenValues (Md_t &A)
 	Md_t Francis;
 	int shift;
 	int rows = A.rows ();
+#ifdef __DEBUG_FRANCIS
 	int ID = A.ID ();
 
-#ifdef __DEBUG_FRANCIS
 	printf (" ⎡\t%d\n", ID);
 #endif
 
