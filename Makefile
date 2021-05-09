@@ -1,7 +1,7 @@
 DEBUG=-D__DEBUG
 OPTIONS= $(OUTSIDE)
 CC=g++
-CFLAGS=-Wall -I. $(DEBUG) $(OPTIONS)
+CFLAGS=-Wall -I. $(DEBUG) $(OPTIONS) -O3
 HDEPS = matrix.h
 DEPS = Makefile $(HDEPS)
 
