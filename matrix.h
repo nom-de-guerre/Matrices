@@ -1078,20 +1078,20 @@ public:
 	}
 
 	// dot product of 2 vectors (matrices of the form (rows, 1))
-	T vec_dot (Matrix_t &A)
+	T vec_dot (Matrix_t &y)
 	{
 #ifdef __DEBUG
-		assert (columns () == A.columns () == 1);
-		assert (rows () == A.rows ());
+		assert (columns () == y.columns () == 1);
+		assert (rows () == y.rows ());
 #endif
 
 		int __rows = rows ();
-		T * __restrict y = A.raw ();
+		T * __restrict yraw = y.raw ();
 		T * __restrict x = raw ();
 		T dot = 0;
 
-		for (int i = 0; i < __rows; ++i, ++x, ++y)
-			dot += *x * *y;
+		for (int i = 0; i < __rows; ++i, ++x, ++yraw)
+			dot += *x * *yraw;
 
 		return dot;
 	}

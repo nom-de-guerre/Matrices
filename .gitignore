@@ -1,3 +1,7 @@
 Krylov/GMRES/GMRES_example
 Krylov/GMRES/curve
+eigen
+example
+regression
 **/.DS_Store
+**/*.swp
