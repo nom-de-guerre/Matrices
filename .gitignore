@@ -1,5 +1,6 @@
 Krylov/GMRES/GMRES_example
 Krylov/GMRES/curve
+Krylov/CG/CG_example
 eigen
 example
 regression

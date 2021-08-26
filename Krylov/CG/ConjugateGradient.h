@@ -35,13 +35,16 @@ typedef Matrix_t<double> Md_t;
 
 struct ConjugateGrad_t
 {
+	// Ax = b, the problem, immutable
 	Md_t			cg_A;
 	Md_t			cg_b;
-	Md_t			cg_x;
-	Md_t			cg_r;
-	Md_t			cg_p;
-	double			cg_rho;
-	double			cg_rhoMinus;
+
+	Md_t			cg_x;			// The answer (so far)
+	Md_t			cg_r;			// The residual
+	Md_t			cg_p;			// The search direction
+
+	double			cg_rho;			// rho_i
+	double			cg_rhoMinus;	// rho_i - 1
 
 	double			cg_halt;
 	int				cg_step;
@@ -85,6 +88,10 @@ public:
 			Step ();
 	}
 
+	/*
+	 * Algorithm 11.3.8, GVL 4th edition (page 635)
+	 *
+	 */
 	void Step (void)
 	{
 		++cg_step; 
