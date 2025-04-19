@@ -400,7 +400,7 @@ template<typename T> struct MatrixView_t
 			(mw_CoW ? "CoW" : "WiP"));
 
 		char buffer [16];
-		sprintf (buffer, "\t%%.%sf", precision);
+		snprintf (buffer, 16, "\t%%.%sf", precision);
 
 		for (int i = 0; i < rows(); i++)
 		{
@@ -1191,7 +1191,6 @@ public:
 		int Arows =  A.rows ();
 		int Aprows = A.m_data->prows ();
 		int Acolumns = A.columns ();
-		int Apcolumns = A.m_data->pcolumns ();
 		int Bcolumns = B.columns ();
 		int Bdelta = B.m_data->prows () - B.rows ();
 
@@ -1204,7 +1203,6 @@ public:
 		T * __restrict Aidx;
 		T * __restrict Bidx;
 		T * __restrict Qidx;
-		int Ainc = 0;
 		int Qinc = 0;
 
 		for (int i = 0; i < Arows; i++)
@@ -1229,8 +1227,6 @@ public:
 				Qinc += Qrows;
 				Bidx += Bdelta;
 			}
-
-			Ainc += Apcolumns;
 		}
 
 		return Q;

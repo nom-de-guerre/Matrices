@@ -167,8 +167,6 @@ int EigenFrancis_t::SchurSubMatrix (Md_t &A, int index, conj_t EigenValues[])
 	double bcmis = fmin (fabs(b), fabs(c)) * SIGN(b) * SIGN(c);
 	double scale = fmax (fabs(p), bcmax);
 	double z = (p / scale) * p + (bcmax / scale) * bcmis;
-	double tau;
-	double cs, sn;
 
 	if (z >= 4.0 * MACH_EPS) {
 
@@ -178,9 +176,6 @@ int EigenFrancis_t::SchurSubMatrix (Md_t &A, int index, conj_t EigenValues[])
 		d -= (bcmax / z) * bcmis;
 
 		/* compute b and the rotation matrix */
-		tau = sqrt (c * c + z * z);
-		cs = z / tau;
-		sn = c / tau;
 		b -= c;
 		c = 0.0;
 

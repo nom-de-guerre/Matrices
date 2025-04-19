@@ -136,12 +136,11 @@ void run ()
 	printf ("Solving with GMRES\n");
 
 	double residual;
-	bool solved;
 	Md_t _x;
 
 	GMRES_t K (KrylovDim, A, b, 1000);
 	K.SetTolerance (0.5); // Euclidean magnitude of residual vector
-	solved = K.Solve (_x, residual);
+	K.Solve (_x, residual);
 
 	printf ("Restarts = %d\tResidual = %f\tError = %f\t%d\n", 
 		K.GetIterations (),
