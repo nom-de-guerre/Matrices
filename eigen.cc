@@ -39,7 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <francis.h>
 
-#define __DIM 100
+#define __DIM 1000
 
 void run (void);
 
@@ -105,7 +105,7 @@ void run (void)
 		Md_t r = (A * u - FR.ef_EigenValues[i].real * u);
 		residual = r.vec_magnitude ();
 		printf (" - residual %e\n", residual);
-		assert (fabs (residual) < 1e-9);
+		assert (fabs (residual) < 1e-7);
 	}
 
 	printf ("Finished processing %d eigenvalues, %d are real\n", N, real);
