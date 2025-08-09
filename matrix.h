@@ -1141,6 +1141,17 @@ public:
 	}
 
 	// The matrix Frobenius norm
+	void zero (void)
+	{
+		T * __restrict p = INVOKE->raw ();
+		int rows = INVOKE->rows ();
+		int columns = INVOKE->columns ();
+
+		memset (p, 0, rows * columns * sizeof (T));
+	}
+
+
+	// The matrix Frobenius norm
 	T Frobenius (void)
 	{
 		T * __restrict p = INVOKE->raw ();
