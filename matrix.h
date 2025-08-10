@@ -1150,6 +1150,25 @@ public:
 		memset (p, 0, rows * columns * sizeof (T));
 	}
 
+	int N (void) const
+	{
+		return INVOKE->rows () * INVOKE->columns ();
+	}
+
+	void importRow (int row, T *p)
+	{
+		T *datap = raw () + row;
+		int incr = stride ();
+		int d = columns ();
+
+		for (int i = 0; i < d; ++i, datap += incr)
+			*datap = p[i];
+	}
+
+	void importRow (int row, Matrix_t<T> &vec)
+	{
+		importRow (row, vec.raw ());
+	}
 
 	// The matrix Frobenius norm
 	T Frobenius (void)
