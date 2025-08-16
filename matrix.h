@@ -387,9 +387,22 @@ template<typename T> struct MatrixView_t
 		return mw_base;
 	}
 
-	void display(const char *name, const char *precision)
+	void displayMeta (const char *name)
 	{
-		printf( "%s\t%p (%p)\t%d\t%d (%d) x %d (%d)\t (%s)\n", name, 
+		printf ("%s\t%p (%p)\t%d\t%d (%d) x %d (%d)\t (%s)\n", name,
+			this,
+			mw_matrix->raw (),
+			mw_serialNo,
+			rows(),
+			mw_prows,
+			columns (),
+			mw_pcolumns,
+			(mw_CoW ? "CoW" : "WiP"));
+	}
+
+	void display (const char *name, const char *precision)
+	{
+		printf ("%s\t%p (%p)\t%d\t%d (%d) x %d (%d)\t (%s)\n", name,
 			this, 
 			mw_matrix->raw (),
 			mw_serialNo, 
@@ -413,7 +426,7 @@ template<typename T> struct MatrixView_t
 
 	void displayExp (const char *name)
 	{
-		printf( "%s\t%p (%p)\t%d\t%d (%d) x %d (%d)\t (%s)\n", name, 
+		printf ("%s\t%p (%p)\t%d\t%d (%d) x %d (%d)\t (%s)\n", name,
 			this, 
 			mw_matrix->raw (),
 			mw_serialNo, 
@@ -740,6 +753,11 @@ public:
 	int columns(void)
 	{
 		return INVOKE->columns ();
+	}
+
+	void displayMeta (const char *name)
+	{
+		INVOKE->displayMeta (name);
 	}
 
 	void display(const char *name = "", const char *precision = "2")
