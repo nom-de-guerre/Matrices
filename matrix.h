@@ -1183,9 +1183,19 @@ public:
 			*datap = p[i];
 	}
 
-	void importRow (int row, Matrix_t<T> &vec)
+	void importRow (int row, Matrix_t<T> &A)
 	{
-		importRow (row, vec.raw ());
+		if (!MatrixView_t<T>::defined (get(), A.get()))
+			throw ("importRow dimension mismatch");
+
+		T *to = raw () + row;
+		T *from = A.raw () + row;
+
+		int incr = stride ();
+		int d = columns ();
+
+		for (int i = 0; i < d; ++i, to += incr, from += incr)
+			*to = *from;
 	}
 
 	// The matrix Frobenius norm
