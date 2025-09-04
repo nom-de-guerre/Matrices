@@ -1158,7 +1158,7 @@ public:
 		return max;
 	}
 
-	// The matrix Frobenius norm
+	// zero out matrix
 	void zero (void)
 	{
 		T * __restrict p = INVOKE->raw ();
@@ -1168,11 +1168,13 @@ public:
 		memset (p, 0, rows * columns * sizeof (T));
 	}
 
+	// total number of elements in matrix
 	int N (void) const
 	{
 		return INVOKE->rows () * INVOKE->columns ();
 	}
 
+	// Copy a row into a matrix (column order so not fun)
 	void importRow (int row, T *p)
 	{
 		T *datap = raw () + row;
@@ -1183,6 +1185,7 @@ public:
 			*datap = p[i];
 	}
 
+	// Copy a row matrix to matrix (column order so not fun)
 	void importRow (int row, Matrix_t<T> &A)
 	{
 		if (!MatrixView_t<T>::defined (get(), A.get()))
