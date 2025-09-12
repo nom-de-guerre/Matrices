@@ -1185,7 +1185,7 @@ public:
 			*datap = p[i];
 	}
 
-	// Copy a row matrix to matrix (column order so not fun)
+	// Copy a row from a matrix to a matrix (column order so not fun)
 	void importRow (int row, Matrix_t<T> &A)
 	{
 		if (!MatrixView_t<T>::defined (get(), A.get()))
@@ -1199,6 +1199,22 @@ public:
 
 		for (int i = 0; i < d; ++i, to += incr, from += incr)
 			*to = *from;
+	}
+
+	// Add a row matrix to matrix (column order so not fun)
+	void addRow (int row, Matrix_t<T> &A)
+	{
+		if (!MatrixView_t<T>::defined (get(), A.get()))
+			throw ("importRow dimension mismatch");
+
+		T *to = raw () + row;
+		T *from = A.raw () + row;
+
+		int incr = stride ();
+		int d = columns ();
+
+		for (int i = 0; i < d; ++i, to += incr, from += incr)
+			*to += *from;
 	}
 
 	// The matrix Frobenius norm
