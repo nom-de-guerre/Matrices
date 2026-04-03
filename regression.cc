@@ -216,21 +216,10 @@ void VerifySymetricSolution (void)
 	Md_t b (N_POINTS, 1);
 	Md_t x (N_POINTS, 1);
 
-	/*
-	 * Construct a positive definite matrix.
-	 *
-	 */
-	for (int i = 0; i < N_POINTS; ++i)
-	{
-		for (int j = 0; j < N_POINTS; ++j)
-			A (i, j) = rand () % UNIVERSE;
+	A.positive_definite_fill (UNIVERSE);
 
+	for (int i = 0; i < N_POINTS; ++i)
 		b (i, 0) = rand () % UNIVERSE;
-	}
-
-	A = 0.5 * (A * A.transpose ());
-	for (int i = 0; i < N_POINTS; ++i)
-		A (i, i) *= N_POINTS;
 
 	Md_t A_saved = A;
 	bool rc = A.SolveSymmetric (b, x);

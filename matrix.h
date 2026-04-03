@@ -815,6 +815,27 @@ public:
 			}
 	}
 
+    /*
+     * Construct a positive definite matrix.
+     *
+	 */
+	void positive_definite_fill (int maxVal)
+	{
+		CoW ();
+
+		int nrows = rows ();
+		int ncolumns = columns ();
+
+		for (int i = 0; i < nrows; ++i)
+			for (int j = 0; j < ncolumns; ++j)
+				(*this) (i, j) = rand () % maxVal;
+
+		*this = 0.5 * ((*this) * this->transpose ());
+
+		for (int i = 0; i < nrows; ++i)
+			(*this) (i, i) *= nrows;
+	}
+
 	// copy a vector into a column of a matrix
 	void vec_fill (Matrix_t &v, int index)
 	{
